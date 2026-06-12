@@ -1,6 +1,6 @@
 # Meeting Room Booking Plugin
 
-A production-ready WordPress plugin for managing meeting room reservations with smart room allocation, conflict detection, and admin moderation.
+A Simple WordPress plugin for managing meeting room reservations with smart room allocation, conflict detection, and admin moderation.
 
 ---
 
