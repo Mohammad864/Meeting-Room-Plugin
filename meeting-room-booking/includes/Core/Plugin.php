@@ -13,16 +13,35 @@ class Plugin
 {
     public function boot(): void
     {
+        // Assets (moved to Assets.php)
+        (new Assets())->register();
+
         add_action('init', [$this, 'registerShortcodes']);
+
         add_action('admin_menu', [$this, 'registerAdminPages']);
-        add_action('admin_post_mrb_submit_booking', [BookingFormShortcode::class, 'handleSubmit']);
-        add_action('admin_post_nopriv_mrb_submit_booking', [BookingFormShortcode::class, 'handleSubmit']);
-        add_action('admin_post_mrb_change_status', [AdminPage::class, 'handleStatusChange']);
+
+        add_action(
+            'admin_post_mrb_submit_booking',
+            [BookingFormShortcode::class, 'handleSubmit']
+        );
+
+        add_action(
+            'admin_post_nopriv_mrb_submit_booking',
+            [BookingFormShortcode::class, 'handleSubmit']
+        );
+
+        add_action(
+            'admin_post_mrb_change_status',
+            [AdminPage::class, 'handleStatusChange']
+        );
     }
 
     public function registerShortcodes(): void
     {
-        add_shortcode('mrb_booking_form', [BookingFormShortcode::class, 'render']);
+        add_shortcode(
+            'mrb_booking_form',
+            [BookingFormShortcode::class, 'render']
+        );
     }
 
     public function registerAdminPages(): void

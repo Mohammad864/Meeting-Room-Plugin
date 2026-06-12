@@ -12,6 +12,8 @@ class BookingFormShortcode
 {
     public static function render(): string
     {
+        wp_enqueue_style('mrb-booking-form');
+        
         $message = '';
 
         if (!empty($_GET['mrb_status'])) {
@@ -28,20 +30,99 @@ class BookingFormShortcode
         ob_start();
         echo $message;
         ?>
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="mrb-booking-form">
+        <form method="post"
+            action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
+            class="mrb-booking-form">
+
             <?php wp_nonce_field('mrb_submit_booking', 'mrb_nonce'); ?>
             <input type="hidden" name="action" value="mrb_submit_booking">
 
-            <p><label>First Name *</label><br><input type="text" name="first_name" required></p>
-            <p><label>Last Name *</label><br><input type="text" name="last_name" required></p>
-            <p><label>Mobile *</label><br><input type="text" name="mobile" required></p>
-            <p><label>Email *</label><br><input type="email" name="email" required></p>
-            <p><label>Meeting Title *</label><br><input type="text" name="meeting_title" required></p>
-            <p><label>Meeting Date *</label><br><input type="date" name="meeting_date" required></p>
-            <p><label>Start Time *</label><br><input type="time" name="start_time" required></p>
-            <p><label>End Time *</label><br><input type="time" name="end_time" required></p>
-            <p><label>Description</label><br><textarea name="description" rows="4"></textarea></p>
-            <p><button type="submit">Submit Reservation</button></p>
+            <div class="mrb-card">
+
+                <div class="mrb-header">
+                    <h2>Meeting Room Reservation</h2>
+                    <p>Fill out the form below to reserve a meeting room.</p>
+                </div>
+
+                <div class="mrb-grid">
+
+                    <div class="mrb-field">
+                        <label for="first_name">
+                            First Name <span>*</span>
+                        </label>
+                        <input type="text" id="first_name" name="first_name" required>
+                    </div>
+
+                    <div class="mrb-field">
+                        <label for="last_name">
+                            Last Name <span>*</span>
+                        </label>
+                        <input type="text" id="last_name" name="last_name" required>
+                    </div>
+
+                    <div class="mrb-field">
+                        <label for="mobile">
+                            Mobile <span>*</span>
+                        </label>
+                        <input type="text" id="mobile" name="mobile" required>
+                    </div>
+
+                    <div class="mrb-field">
+                        <label for="email">
+                            Email <span>*</span>
+                        </label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+
+                </div>
+
+                <div class="mrb-field">
+                    <label for="meeting_title">
+                        Meeting Title <span>*</span>
+                    </label>
+                    <input type="text" id="meeting_title" name="meeting_title" required>
+                </div>
+
+                <div class="mrb-grid">
+
+                    <div class="mrb-field">
+                        <label for="meeting_date">
+                            Meeting Date <span>*</span>
+                        </label>
+                        <input type="date" id="meeting_date" name="meeting_date" required>
+                    </div>
+
+                    <div class="mrb-field">
+                        <label for="start_time">
+                            Start Time <span>*</span>
+                        </label>
+                        <input type="time" id="start_time" name="start_time" required>
+                    </div>
+
+                    <div class="mrb-field">
+                        <label for="end_time">
+                            End Time <span>*</span>
+                        </label>
+                        <input type="time" id="end_time" name="end_time" required>
+                    </div>
+
+                </div>
+
+                <div class="mrb-field">
+                    <label for="description">
+                        Meeting Description
+                    </label>
+                    <textarea id="description"
+                            name="description"
+                            rows="5"></textarea>
+                </div>
+
+                <button type="submit" class="mrb-submit-btn">
+                    Submit Reservation
+                </button>
+
+            </div>
+
         </form>
         <?php
 
