@@ -8,84 +8,61 @@ if (!defined('ABSPATH')) {
 
 class ReservationRepository
 {
-    private string $table;
+    private $wpdb;
+    private $table;
 
     public function __construct()
     {
         global $wpdb;
+
+        $this->wpdb  = $wpdb;
         $this->table = $wpdb->prefix . 'mrb_reservations';
     }
 
+    /**
+     * Insert new reservation
+     */
     public function create(array $data): int
     {
-        global $wpdb;
-
-        $wpdb->insert(
+        $this->wpdb->insert(
             $this->table,
-            [
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'mobile' => $data['mobile'],
-                'email' => $data['email'],
-                'meeting_title' => $data['meeting_title'],
-                'meeting_date' => $data['meeting_date'],
-                'start_time' => $data['start_time'],
-                'end_time' => $data['end_time'],
-                'description' => $data['description'],
-                'room_id' => $data['room_id'],
-                'status' => $data['status'],
-                'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql'),
-            ],
-            [
-                '%s', '%s', '%s', '%s', '%s',
-                '%s', '%s', '%s', '%s',
-                '%d', '%s', '%s', '%s'
-            ]
+            $data
         );
 
-        return (int) $wpdb->insert_id;
+        return (int) $this->wpdb->insert_id;
     }
 
-    public function hasConflict(
-        int $roomId,
-        string $date,
-        string $startTime,
-        string $endTime,
-        ?int $excludeReservationId = null
-    ): bool {
-        global $wpdb;
-
-        $sql = "
-            SELECT COUNT(*)
-            FROM {$this->table}
-            WHERE meeting_date = %s
-            AND room_id = %d
-            AND status = 'approved'
-            AND start_time < %s
-            AND end_time > %s
-        ";
-
-        $params = [$date, $roomId, $endTime, $startTime];
-
-        if ($excludeReservationId) {
-            $sql .= " AND id != %d";
-            $params[] = $excludeReservationId;
-        }
-
-        $count = (int) $wpdb->get_var(
-            $wpdb->prepare($sql, ...$params)
-        );
-
-        return $count > 0;
-    }
-
-    public function find(int $id): ?array
+    /**
+     * Update reservation
+     */
+    public function update(int $id, array $data): bool
     {
-        global $wpdb;
+        $updated = $this->wpdb->update(
+            $this->table,
+            $data,
+            ['id' => $id]
+        );
 
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
+        return $updated !== false;
+    }
+
+    /**
+     * Cancel reservation
+     */
+    public function cancel(int $id): bool
+    {
+        return $this->update($id, [
+            'status' => 'cancelled'
+        ]);
+    }
+
+    /**
+     * Find reservation by ID
+     */
+    public function findById(int $id): ?array
+    {
+        $row = $this->wpdb->get_row(
+            $this->wpdb->prepare(
                 "SELECT * FROM {$this->table} WHERE id = %d",
                 $id
             ),
@@ -95,115 +72,193 @@ class ReservationRepository
         return $row ?: null;
     }
 
-    public function updateStatus(int $id, string $status, ?int $roomId = null): bool
+    /**
+     * Find reservation by edit token
+     */
+    public function findByToken(string $token): ?array
     {
-        global $wpdb;
-
-        $data = [
-            'status' => $status,
-            'updated_at' => current_time('mysql'),
-        ];
-
-        $format = ['%s', '%s'];
-
-        if ($roomId !== null) {
-            $data['room_id'] = $roomId;
-            $format[] = '%d';
-        }
-
-        return false !== $wpdb->update(
-            $this->table,
-            $data,
-            ['id' => $id],
-            $format,
-            ['%d']
+        $row = $this->wpdb->get_row(
+            $this->wpdb->prepare(
+                "SELECT * FROM {$this->table} WHERE edit_token = %s",
+                $token
+            ),
+            ARRAY_A
         );
+
+        return $row ?: null;
     }
 
-    public function query(array $args): array
+    /**
+     * Query reservations with filters
+     */
+    public function query(array $args = []): array
     {
-        global $wpdb;
+        $where = "WHERE 1=1";
 
-        $where = ['1=1'];
         $params = [];
 
+        /**
+         * Search by name or mobile
+         */
         if (!empty($args['search'])) {
-            $search = '%' . $wpdb->esc_like($args['search']) . '%';
-            $where[] = "(first_name LIKE %s OR last_name LIKE %s OR mobile LIKE %s)";
+
+            $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
+
+            $where .= " AND (
+                first_name LIKE %s
+                OR last_name LIKE %s
+                OR mobile LIKE %s
+            )";
+
             $params[] = $search;
             $params[] = $search;
             $params[] = $search;
         }
 
+        /**
+         * Filter by date
+         */
         if (!empty($args['date'])) {
-            $where[] = "meeting_date = %s";
+
+            $where .= " AND meeting_date = %s";
+
             $params[] = $args['date'];
         }
 
-        $limit = isset($args['limit']) ? (int) $args['limit'] : 20;
+        /**
+         * Filter by status
+         */
+        if (!empty($args['status'])) {
+
+            $where .= " AND status = %s";
+
+            $params[] = $args['status'];
+        }
+
+        $limit  = isset($args['limit']) ? (int) $args['limit'] : 20;
         $offset = isset($args['offset']) ? (int) $args['offset'] : 0;
 
-        $sql = "
-            SELECT *
-            FROM {$this->table}
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY meeting_date DESC, start_time DESC
-            LIMIT %d OFFSET %d
-        ";
+        $sql = "SELECT *
+                FROM {$this->table}
+                $where
+                ORDER BY created_at DESC
+                LIMIT %d OFFSET %d";
 
         $params[] = $limit;
         $params[] = $offset;
 
-        return $wpdb->get_results(
-            $wpdb->prepare($sql, ...$params),
-            ARRAY_A
-        );
+        $prepared = $this->wpdb->prepare($sql, ...$params);
+
+        return $this->wpdb->get_results($prepared, ARRAY_A);
     }
 
-    public function count(array $args): int
+    /**
+     * Count reservations (for pagination)
+     */
+    public function getTotalCount(array $args = []): int
     {
-        global $wpdb;
+        $where = "WHERE 1=1";
 
-        $where = ['1=1'];
         $params = [];
 
         if (!empty($args['search'])) {
-            $search = '%' . $wpdb->esc_like($args['search']) . '%';
-            $where[] = "(first_name LIKE %s OR last_name LIKE %s OR mobile LIKE %s)";
+
+            $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
+
+            $where .= " AND (
+                first_name LIKE %s
+                OR last_name LIKE %s
+                OR mobile LIKE %s
+            )";
+
             $params[] = $search;
             $params[] = $search;
             $params[] = $search;
         }
 
         if (!empty($args['date'])) {
-            $where[] = "meeting_date = %s";
+
+            $where .= " AND meeting_date = %s";
+
             $params[] = $args['date'];
         }
 
-        $sql = "
-            SELECT COUNT(*)
-            FROM {$this->table}
-            WHERE " . implode(' AND ', $where);
+        if (!empty($args['status'])) {
 
-        if (!empty($params)) {
-            return (int) $wpdb->get_var($wpdb->prepare($sql, ...$params));
+            $where .= " AND status = %s";
+
+            $params[] = $args['status'];
         }
 
-        return (int) $wpdb->get_var($sql);
+        $sql = "SELECT COUNT(*) FROM {$this->table} $where";
+
+        if (!empty($params)) {
+
+            $sql = $this->wpdb->prepare($sql, ...$params);
+        }
+
+        return (int) $this->wpdb->get_var($sql);
     }
 
-    public function getApprovedByDate(string $date): array
+    /**
+     * Alias required by WP_List_Table compatibility
+     */
+    public function count(array $args = []): int
     {
-        global $wpdb;
+        return $this->getTotalCount($args);
+    }
 
-        return $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT start_time, end_time FROM {$this->table}
-                 WHERE meeting_date = %s AND status = 'approved'
+    /**
+     * Get reservations by date
+     * (useful for room allocation algorithm)
+     */
+    public function findByDate(string $date): array
+    {
+        $results = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                "SELECT *
+                 FROM {$this->table}
+                 WHERE meeting_date = %s
+                 AND status = 'approved'
                  ORDER BY start_time ASC",
                 $date
             ),
             ARRAY_A
         );
+
+        return $results ?: [];
+    }
+
+    /**
+     * Get reservations that overlap with a time slot
+     */
+    public function findOverlapping(
+        string $date,
+        string $startTime,
+        string $endTime
+    ): array {
+
+        $sql = "
+            SELECT *
+            FROM {$this->table}
+            WHERE meeting_date = %s
+            AND status = 'approved'
+            AND (
+                start_time < %s
+                AND end_time > %s
+            )
+        ";
+
+        $results = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                $sql,
+                $date,
+                $endTime,
+                $startTime
+            ),
+            ARRAY_A
+        );
+
+        return $results ?: [];
     }
 }

@@ -41,7 +41,10 @@ class Activator
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
             created_at DATETIME NOT NULL,
             updated_at DATETIME NULL,
+            edit_token VARCHAR(64) NOT NULL,
+            cancelled_at DATETIME NULL,
             PRIMARY KEY (id),
+            KEY edit_token_idx (edit_token),
             KEY meeting_date_idx (meeting_date),
             KEY mobile_idx (mobile),
             KEY status_idx (status),
@@ -53,6 +56,10 @@ class Activator
         dbDelta($reservationsSql);
 
         self::seedDefaultRooms();
+
+        // Register the rule and flush
+        add_rewrite_rule('^reservation/([a-zA-Z0-9]+)/?$', 'index.php?mrb_token=$matches[1]', 'top');
+        flush_rewrite_rules();
     }
 
     private static function seedDefaultRooms(): void

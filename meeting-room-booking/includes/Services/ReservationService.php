@@ -3,7 +3,6 @@
 namespace MRB\Services;
 
 use MRB\Database\ReservationRepository;
-use MRB\Support\Validator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -11,111 +10,208 @@ if (!defined('ABSPATH')) {
 
 class ReservationService
 {
-    private ReservationRepository $reservations;
-    private RoomAllocator $roomAllocator;
+    private ReservationRepository $repository;
 
-    public function __construct(
-        ?ReservationRepository $reservations = null,
-        ?RoomAllocator $roomAllocator = null
-    ) {
-        $this->reservations = $reservations ?: new ReservationRepository();
-        $this->roomAllocator = $roomAllocator ?: new RoomAllocator();
+    public function __construct(ReservationRepository $repository)
+    {
+        $this->repository = $repository;
     }
 
-    public function create(array $input): array
+    /**
+     * Create reservation
+     */
+    public function create(array $data): array
     {
-        $data = $this->sanitize($input);
-        $errors = Validator::validateReservation($data);
+        $clean = $this->sanitizeReservationData($data);
 
-        if (!empty($errors)) {
+        if (!$this->validateReservationData($clean)) {
             return [
                 'success' => false,
-                'errors' => $errors,
+                'errors'  => ['Invalid data. Please check all required fields.']
             ];
         }
 
-        $roomId = $this->roomAllocator->allocate(
-            $data['meeting_date'],
-            $data['start_time'],
-            $data['end_time']
-        );
+        $token = $this->generateToken();
+        
+        $clean['edit_token']   = $token;
+        $clean['status']       = 'pending';
+        $clean['created_at']   = current_time('mysql');
+        $clean['updated_at']   = current_time('mysql');
 
-        $data['room_id'] = $roomId;
-        $data['status'] = 'pending';
+        $insertedId = $this->repository->create($clean);
 
-        $id = $this->reservations->create($data);
+        if (!$insertedId) {
+            return [
+                'success' => false,
+                'errors'  => ['Database error: Could not save reservation.']
+            ];
+        }
 
         return [
             'success' => true,
-            'id' => $id,
-            'room_id' => $roomId,
+            'id'      => $insertedId,
+            'token'   => $token
         ];
     }
 
-    public function approve(int $reservationId): array
+    /**
+     * Update reservation using token (guest editing)
+     */
+    public function updateReservation(string $token, array $data): bool
     {
-        $reservation = $this->reservations->find($reservationId);
+        $reservation = $this->repository->findByToken($token);
 
+        if (!$reservation || $reservation['status'] === 'cancelled') {
+            return false;
+        }
+
+        $clean = $this->sanitizeReservationData($data);
+
+        if (!$this->validateReservationData($clean)) {
+            return false;
+        }
+
+        $clean['updated_at'] = current_time('mysql');
+
+        return $this->repository->update((int)$reservation['id'], $clean);
+    }
+
+    /**
+     * Cancel reservation via token
+     */
+    public function cancelByToken(string $token): bool
+    {
+        $reservation = $this->repository->findByToken($token);
         if (!$reservation) {
-            return [
-                'success' => false,
-                'message' => 'Reservation not found.',
-            ];
+            return false;
         }
 
-        $roomId = $this->roomAllocator->allocate(
-            $reservation['meeting_date'],
-            $reservation['start_time'],
-            $reservation['end_time'],
-            $reservationId
-        );
+        return $this->repository->update((int)$reservation['id'], [
+            'status'     => 'cancelled',
+            'updated_at' => current_time('mysql')
+        ]);
+    }
 
-        if (!$roomId) {
-            return [
-                'success' => false,
-                'message' => 'No available room for this time range.',
-            ];
+    /**
+     * Admin edit reservation
+     */
+    public function adminEdit(int $id, array $data): bool
+    {
+        $allowedStatuses = ['pending', 'approved', 'rejected', 'cancelled'];
+        $status = isset($data['status']) ? sanitize_key($data['status']) : 'pending';
+        
+        if (!in_array($status, $allowedStatuses, true)) {
+            $status = 'pending';
         }
 
-        $this->reservations->updateStatus($reservationId, 'approved', $roomId);
+        $roomId = isset($data['room_id']) ? absint($data['room_id']) : null;
 
+        $updateData = [
+            'first_name'    => sanitize_text_field($data['first_name'] ?? ''),
+            'last_name'     => sanitize_text_field($data['last_name'] ?? ''),
+            'mobile'        => sanitize_text_field($data['mobile'] ?? ''),
+            'email'         => sanitize_email($data['email'] ?? ''),
+            'meeting_title' => sanitize_text_field($data['meeting_title'] ?? ''),
+            'meeting_date'  => sanitize_text_field($data['meeting_date'] ?? ''),
+            'start_time'    => sanitize_text_field($data['start_time'] ?? ''),
+            'end_time'      => sanitize_text_field($data['end_time'] ?? ''),
+            'description'   => sanitize_textarea_field($data['description'] ?? ''),
+            'status'        => $status,
+            'room_id'       => $roomId > 0 ? $roomId : null,
+            'updated_at'    => current_time('mysql'),
+        ];
+
+        return $this->repository->update($id, $updateData);
+    }
+
+    /**
+     * Change reservation status (admin quick action)
+     */
+    public function changeStatus(int $id, string $status): bool
+    {
+        $allowed = ['pending', 'approved', 'rejected'];
+        
+        if (!in_array($status, $allowed, true)) {
+            return false;
+        }
+
+        return $this->repository->update($id, [
+            'status'     => $status,
+            'updated_at' => current_time('mysql')
+        ]);
+    }
+
+    /**
+     * Find reservation by token
+     */
+    public function findByToken(string $token): ?array
+    {
+        return $this->repository->findByToken($token) ?: null;
+    }
+
+    /**
+     * Calculate minimum rooms required
+     */
+    public function calculateMinimumRooms(string $date): int
+    {
+        $reservations = $this->repository->findByDate($date);
+        if (!$reservations) {
+            return 0;
+        }
+
+        $events = [];
+        foreach ($reservations as $r) {
+            $events[] = ['time' => $r['start_time'], 'type' => 'start'];
+            $events[] = ['time' => $r['end_time'], 'type' => 'end'];
+        }
+
+        usort($events, function ($a, $b) {
+            return strcmp($a['time'], $b['time']);
+        });
+
+        $current = 0;
+        $max = 0;
+        foreach ($events as $event) {
+            if ($event['type'] === 'start') {
+                $current++;
+                $max = max($max, $current);
+            } else {
+                $current--;
+            }
+        }
+        return $max;
+    }
+
+    private function generateToken(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    private function sanitizeReservationData(array $data): array
+    {
         return [
-            'success' => true,
-            'message' => 'Reservation approved successfully.',
+            'first_name'    => sanitize_text_field($data['first_name'] ?? ''),
+            'last_name'     => sanitize_text_field($data['last_name'] ?? ''),
+            'mobile'        => sanitize_text_field($data['mobile'] ?? ''),
+            'email'         => sanitize_email($data['email'] ?? ''),
+            'meeting_title' => sanitize_text_field($data['meeting_title'] ?? ''),
+            'meeting_date'  => sanitize_text_field($data['meeting_date'] ?? ''),
+            'start_time'    => sanitize_text_field($data['start_time'] ?? ''),
+            'end_time'      => sanitize_text_field($data['end_time'] ?? ''),
+            'description'   => sanitize_textarea_field($data['description'] ?? ''),
         ];
     }
 
-    public function reject(int $reservationId): array
+    private function validateReservationData(array $data): bool
     {
-        $reservation = $this->reservations->find($reservationId);
-
-        if (!$reservation) {
-            return [
-                'success' => false,
-                'message' => 'Reservation not found.',
-            ];
-        }
-
-        $this->reservations->updateStatus($reservationId, 'rejected');
-
-        return [
-            'success' => true,
-            'message' => 'Reservation rejected successfully.',
-        ];
-    }
-
-    private function sanitize(array $input): array
-    {
-        return [
-            'first_name' => sanitize_text_field($input['first_name'] ?? ''),
-            'last_name' => sanitize_text_field($input['last_name'] ?? ''),
-            'mobile' => sanitize_text_field($input['mobile'] ?? ''),
-            'email' => sanitize_email($input['email'] ?? ''),
-            'meeting_title' => sanitize_text_field($input['meeting_title'] ?? ''),
-            'meeting_date' => sanitize_text_field($input['meeting_date'] ?? ''),
-            'start_time' => sanitize_text_field($input['start_time'] ?? ''),
-            'end_time' => sanitize_text_field($input['end_time'] ?? ''),
-            'description' => sanitize_textarea_field($input['description'] ?? ''),
-        ];
+        return !empty($data['first_name']) &&
+               !empty($data['last_name']) &&
+               !empty($data['mobile']) &&
+               !empty($data['email']) &&
+               is_email($data['email']) &&
+               !empty($data['meeting_title']) &&
+               !empty($data['meeting_date']) &&
+               !empty($data['start_time']) &&
+               !empty($data['end_time']);
     }
 }
