@@ -8,6 +8,9 @@ if (!defined('ABSPATH')) {
 
 class Activator
 {
+    /**
+     * Run on plugin activation
+     */
     public static function activate(): void
     {
         global $wpdb;
@@ -19,6 +22,7 @@ class Activator
         $roomsTable = $wpdb->prefix . 'mrb_rooms';
         $reservationsTable = $wpdb->prefix . 'mrb_reservations';
 
+        // 1. Create Rooms Table
         $roomsSql = "CREATE TABLE {$roomsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             name VARCHAR(191) NOT NULL,
@@ -26,6 +30,7 @@ class Activator
             PRIMARY KEY (id)
         ) {$charsetCollate};";
 
+        // 2. Create Reservations Table (No participants field)
         $reservationsSql = "CREATE TABLE {$reservationsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             first_name VARCHAR(100) NOT NULL,
@@ -46,44 +51,84 @@ class Activator
             PRIMARY KEY (id),
             KEY edit_token_idx (edit_token),
             KEY meeting_date_idx (meeting_date),
-            KEY mobile_idx (mobile),
             KEY status_idx (status),
-            KEY room_id_idx (room_id),
-            KEY conflict_idx (meeting_date, room_id, start_time, end_time)
+            KEY room_id_idx (room_id)
         ) {$charsetCollate};";
 
         dbDelta($roomsSql);
         dbDelta($reservationsSql);
 
-        self::seedDefaultRooms();
+        // 3. Initialize default room count if not exists
+        if (get_option('mrb_number_of_rooms', false) === false) {
+            update_option('mrb_number_of_rooms', 3);
+        }
 
-        // Register the rule and flush
+        // 4. Initial Sync
+        self::syncRoomsToConfiguredCount();
+
+        // 5. Setup Rewrite Rules
         add_rewrite_rule('^reservation/([a-zA-Z0-9]+)/?$', 'index.php?mrb_token=$matches[1]', 'top');
         flush_rewrite_rules();
     }
 
-    private static function seedDefaultRooms(): void
+    /**
+     * Sync mrb_rooms table with configured room count.
+     * This is safe to call during activation OR from the settings page.
+     */
+    public static function syncRoomsToConfiguredCount(): void
     {
         global $wpdb;
 
         $roomsTable = $wpdb->prefix . 'mrb_rooms';
-        $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$roomsTable}");
+        $reservationsTable = $wpdb->prefix . 'mrb_reservations';
 
-        if ($count > 0) {
-            return;
-        }
+        // Get count from options (default to 3 if missing)
+        $desiredCount = max(1, (int) get_option('mrb_number_of_rooms', 3));
 
+        // Get current rooms
+        $existingRooms = $wpdb->get_results(
+            "SELECT id FROM {$roomsTable} ORDER BY id ASC",
+            ARRAY_A
+        );
+
+        $currentCount = count($existingRooms);
         $now = current_time('mysql');
 
-        for ($i = 1; $i <= 3; $i++) {
-            $wpdb->insert(
-                $roomsTable,
-                [
-                    'name' => 'Room ' . $i,
-                    'created_at' => $now,
-                ],
-                ['%s', '%s']
-            );
+        // CASE 1: Need more rooms
+        if ($currentCount < $desiredCount) {
+            $roomsToAdd = $desiredCount - $currentCount;
+            for ($i = 1; $i <= $roomsToAdd; $i++) {
+                $roomNumber = $currentCount + $i;
+                $wpdb->insert(
+                    $roomsTable,
+                    [
+                        'name'       => 'Room ' . $roomNumber,
+                        'created_at' => $now,
+                    ],
+                    ['%s', '%s']
+                );
+            }
+        }
+
+        // CASE 2: Too many rooms (Safe deletion)
+        elseif ($currentCount > $desiredCount) {
+            // Take the extra rooms from the end of the list
+            $extraRooms = array_slice($existingRooms, $desiredCount);
+
+            foreach ($extraRooms as $room) {
+                $roomId = (int) $room['id'];
+
+                // Check if this room is used by ANY reservation (including old ones)
+                $isUsed = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$reservationsTable} WHERE room_id = %d",
+                    $roomId
+                ));
+
+                // ONLY delete if NO reservations are linked to this room ID
+                if ((int)$isUsed === 0) {
+                    $wpdb->delete($roomsTable, ['id' => $roomId], ['%d']);
+                }
+            }
         }
     }
 }
