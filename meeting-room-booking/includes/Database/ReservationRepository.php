@@ -47,6 +47,16 @@ class ReservationRepository
     }
 
     /**
+     * Update only status
+     */
+    public function updateStatus(int $id, string $status): bool
+    {
+        return $this->update($id, [
+            'status' => $status
+        ]);
+    }
+
+    /**
      * Cancel reservation
      */
     public function cancel(int $id): bool
@@ -97,9 +107,6 @@ class ReservationRepository
 
         $params = [];
 
-        /**
-         * Search by name or mobile
-         */
         if (!empty($args['search'])) {
 
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
@@ -115,9 +122,6 @@ class ReservationRepository
             $params[] = $search;
         }
 
-        /**
-         * Filter by date
-         */
         if (!empty($args['date'])) {
 
             $where .= " AND meeting_date = %s";
@@ -125,9 +129,6 @@ class ReservationRepository
             $params[] = $args['date'];
         }
 
-        /**
-         * Filter by status
-         */
         if (!empty($args['status'])) {
 
             $where .= " AND status = %s";
@@ -193,7 +194,6 @@ class ReservationRepository
         $sql = "SELECT COUNT(*) FROM {$this->table} $where";
 
         if (!empty($params)) {
-
             $sql = $this->wpdb->prepare($sql, ...$params);
         }
 
@@ -210,7 +210,6 @@ class ReservationRepository
 
     /**
      * Get reservations by date
-     * (useful for room allocation algorithm)
      */
     public function findByDate(string $date): array
     {
@@ -260,5 +259,89 @@ class ReservationRepository
         );
 
         return $results ?: [];
+    }
+
+    /**
+     * Count overlapping approved reservations
+     */
+    public function countOverlappingApproved(
+        string $date,
+        string $startTime,
+        string $endTime,
+        int $excludeId = 0
+    ): int {
+
+        $sql = "
+            SELECT COUNT(*)
+            FROM {$this->table}
+            WHERE meeting_date = %s
+            AND status = 'approved'
+            AND start_time < %s
+            AND end_time > %s
+        ";
+
+        if ($excludeId > 0) {
+            $sql .= " AND id != %d";
+
+            return (int) $this->wpdb->get_var(
+                $this->wpdb->prepare(
+                    $sql,
+                    $date,
+                    $endTime,
+                    $startTime,
+                    $excludeId
+                )
+            );
+        }
+
+        return (int) $this->wpdb->get_var(
+            $this->wpdb->prepare(
+                $sql,
+                $date,
+                $endTime,
+                $startTime
+            )
+        );
+    }
+
+    /**
+     * Find available room automatically
+     */
+    public function findAvailableRoom(
+        string $date,
+        string $startTime,
+        string $endTime
+    ): ?int {
+
+        global $wpdb;
+
+        $roomsTable = $wpdb->prefix . 'mrb_rooms';
+
+        $sql = "
+            SELECT r.id
+            FROM {$roomsTable} r
+            WHERE r.id NOT IN (
+                SELECT room_id
+                FROM {$this->table}
+                WHERE meeting_date = %s
+                AND status = 'approved'
+                AND room_id IS NOT NULL
+                AND start_time < %s
+                AND end_time > %s
+            )
+            ORDER BY r.id ASC
+            LIMIT 1
+        ";
+
+        $roomId = $wpdb->get_var(
+            $wpdb->prepare(
+                $sql,
+                $date,
+                $endTime,
+                $startTime
+            )
+        );
+
+        return $roomId ? (int) $roomId : null;
     }
 }

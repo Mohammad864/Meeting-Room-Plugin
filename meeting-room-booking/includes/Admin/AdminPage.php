@@ -518,28 +518,27 @@ class AdminPage
 
         $updated = $service->adminEdit($id, wp_unslash($_POST));
 
-if (!$updated) {
-    echo '<h2>Reservation Update Debug</h2>';
+        if (!$updated) {
+            echo '<h2>Reservation Update Debug</h2>';
 
-    echo '<h3>POST Data</h3>';
-    echo '<pre>';
-    print_r($_POST);
-    echo '</pre>';
+            echo '<h3>POST Data</h3>';
+            echo '<pre>';
+            print_r($_POST);
+            echo '</pre>';
 
-    echo '<p><strong>Update returned FALSE.</strong></p>';
+            echo '<p><strong>Update returned FALSE.</strong></p>';
 
-    global $wpdb;
+            global $wpdb;
 
-    if (!empty($wpdb->last_error)) {
-        echo '<h3>Database Error</h3>';
-        echo '<pre>' . esc_html($wpdb->last_error) . '</pre>';
-    }
+            if (!empty($wpdb->last_error)) {
+                echo '<h3>Database Error</h3>';
+                echo '<pre>' . esc_html($wpdb->last_error) . '</pre>';
+            }
 
-    echo '<p>Fix the issue and then remove this debug code.</p>';
+            echo '<p>Fix the issue and then remove this debug code.</p>';
 
-    exit;
-}
-
+            exit;
+        }
 
         wp_safe_redirect(add_query_arg('mrb_message', 'updated', $redirectUrl));
         exit;
@@ -580,16 +579,22 @@ if (!$updated) {
         $repository = new ReservationRepository();
         $service    = new ReservationService($repository);
 
-        $updated = $service->changeStatus($id, $status);
+        $result = $service->changeStatus($id, $status);
 
         $redirectUrl = admin_url('admin.php?page=mrb-reservations');
 
-        if (!$updated) {
-            wp_safe_redirect(add_query_arg('mrb_error', 'status_failed', $redirectUrl));
+        if (!$result['success']) {
+            wp_safe_redirect(add_query_arg([
+                'mrb_error' => 'status_failed',
+                'mrb_error_msg' => urlencode($result['message']),
+            ], $redirectUrl));
             exit;
         }
 
-        wp_safe_redirect(add_query_arg('mrb_message', 'status_updated', $redirectUrl));
+        wp_safe_redirect(add_query_arg([
+            'mrb_message' => 'status_updated',
+            'mrb_msg' => urlencode($result['message']),
+        ], $redirectUrl));
         exit;
     }
 
@@ -606,7 +611,11 @@ if (!$updated) {
         }
 
         if ($message === 'status_updated') {
-            echo '<div class="notice notice-success is-dismissible"><p>Reservation status updated successfully.</p></div>';
+            $msg = isset($_GET['mrb_msg'])
+                ? urldecode(wp_unslash($_GET['mrb_msg']))
+                : 'Reservation status updated successfully.';
+
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($msg) . '</p></div>';
         }
 
         if ($error === 'update_failed') {
@@ -614,7 +623,11 @@ if (!$updated) {
         }
 
         if ($error === 'status_failed') {
-            echo '<div class="notice notice-error is-dismissible"><p>Failed to update reservation status.</p></div>';
+            $msg = isset($_GET['mrb_error_msg'])
+                ? urldecode(wp_unslash($_GET['mrb_error_msg']))
+                : 'Failed to update reservation status.';
+
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($msg) . '</p></div>';
         }
     }
 

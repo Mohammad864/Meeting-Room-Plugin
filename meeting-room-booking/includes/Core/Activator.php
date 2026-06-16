@@ -30,7 +30,8 @@ class Activator
             PRIMARY KEY (id)
         ) {$charsetCollate};";
 
-        // 2. Create Reservations Table (No participants field)
+        // 2. Create Reservations Table
+        // Added composite index and foreign key constraint
         $reservationsSql = "CREATE TABLE {$reservationsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             first_name VARCHAR(100) NOT NULL,
@@ -52,7 +53,12 @@ class Activator
             KEY edit_token_idx (edit_token),
             KEY meeting_date_idx (meeting_date),
             KEY status_idx (status),
-            KEY room_id_idx (room_id)
+            KEY date_status_idx (meeting_date, status),
+            KEY room_id_idx (room_id),
+            CONSTRAINT fk_mrb_room
+                FOREIGN KEY (room_id)
+                REFERENCES {$roomsTable}(id)
+                ON DELETE SET NULL
         ) {$charsetCollate};";
 
         dbDelta($roomsSql);

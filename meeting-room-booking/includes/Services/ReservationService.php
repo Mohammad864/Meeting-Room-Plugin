@@ -38,6 +38,13 @@ class ReservationService
             ];
         }
 
+        if ($clean['meeting_date'] < date('Y-m-d')) {
+            return [
+                'success' => false,
+                'errors'  => ['Reservations cannot be created in the past.']
+            ];
+        }
+
         $token = $this->generateToken();
 
         $clean['edit_token'] = $token;
@@ -54,6 +61,15 @@ class ReservationService
             ];
         }
 
+        $this->sendEmail(
+            $clean['email'],
+            'Reservation Received',
+            "Your reservation has been received and is pending approval.\n\n"
+            . "Meeting: {$clean['meeting_title']}\n"
+            . "Date: {$clean['meeting_date']}\n"
+            . "Time: {$clean['start_time']} - {$clean['end_time']}"
+        );
+
         return [
             'success' => true,
             'id'      => $insertedId,
@@ -62,13 +78,25 @@ class ReservationService
     }
 
     /**
-     * Update reservation using token (guest editing)
+     * Update reservation using token
      */
     public function updateReservation(string $token, array $data): bool
     {
         $reservation = $this->repository->findByToken($token);
 
-        if (!$reservation || $reservation['status'] === 'cancelled') {
+        if (!$reservation) {
+            return false;
+        }
+
+        if (in_array($reservation['status'], ['cancelled', 'rejected'], true)) {
+            return false;
+        }
+
+        $startTimestamp = strtotime(
+            $reservation['meeting_date'] . ' ' . $reservation['start_time']
+        );
+
+        if ($startTimestamp < time()) {
             return false;
         }
 
@@ -84,11 +112,16 @@ class ReservationService
 
         $clean['updated_at'] = current_time('mysql');
 
+        if ($reservation['status'] === 'approved') {
+            $clean['status'] = 'pending';
+            $clean['room_id'] = null;
+        }
+
         return $this->repository->update((int) $reservation['id'], $clean);
     }
 
     /**
-     * Cancel reservation via token
+     * Cancel reservation
      */
     public function cancelByToken(string $token): bool
     {
@@ -98,10 +131,34 @@ class ReservationService
             return false;
         }
 
-        return $this->repository->update((int) $reservation['id'], [
-            'status'     => 'cancelled',
-            'updated_at' => current_time('mysql')
+        if ($reservation['status'] === 'cancelled') {
+            return false;
+        }
+
+        $startTimestamp = strtotime(
+            $reservation['meeting_date'] . ' ' . $reservation['start_time']
+        );
+
+        if ($startTimestamp < time()) {
+            return false;
+        }
+
+        $result = $this->repository->update((int) $reservation['id'], [
+            'status'       => 'cancelled',
+            'cancelled_at' => current_time('mysql'),
+            'updated_at'   => current_time('mysql'),
+            'room_id'      => null
         ]);
+
+        if ($result) {
+            $this->sendEmail(
+                $reservation['email'],
+                'Reservation Cancelled',
+                "Your reservation '{$reservation['meeting_title']}' has been cancelled."
+            );
+        }
+
+        return $result;
     }
 
     /**
@@ -145,20 +202,80 @@ class ReservationService
     }
 
     /**
-     * Change reservation status (admin quick action)
+     * Change reservation status (admin action)
      */
-    public function changeStatus(int $id, string $status): bool
+    public function changeStatus(int $id, string $status): array
     {
         $allowed = ['pending', 'approved', 'rejected'];
 
         if (!in_array($status, $allowed, true)) {
-            return false;
+            return [
+                'success' => false,
+                'message' => 'Invalid reservation status.'
+            ];
         }
 
-        return $this->repository->update($id, [
+        $reservation = $this->repository->findById($id);
+
+        if (!$reservation) {
+            return [
+                'success' => false,
+                'message' => 'Reservation not found.'
+            ];
+        }
+
+        $updateData = [
             'status'     => $status,
             'updated_at' => current_time('mysql')
-        ]);
+        ];
+
+        if ($status === 'approved') {
+
+            $roomId = $this->repository->findAvailableRoom(
+                $reservation['meeting_date'],
+                $reservation['start_time'],
+                $reservation['end_time']
+            );
+
+            if (!$roomId) {
+                return [
+                    'success' => false,
+                    'message' => 'No meeting rooms are available for this time slot.'
+                ];
+            }
+
+            $updateData['room_id'] = $roomId;
+        }
+
+        $result = $this->repository->update($id, $updateData);
+
+        if (!$result) {
+            return [
+                'success' => false,
+                'message' => 'Database error while updating reservation.'
+            ];
+        }
+
+        if ($status === 'approved') {
+            $this->sendEmail(
+                $reservation['email'],
+                'Reservation Approved',
+                "Your reservation '{$reservation['meeting_title']}' has been approved."
+            );
+        }
+
+        if ($status === 'rejected') {
+            $this->sendEmail(
+                $reservation['email'],
+                'Reservation Rejected',
+                "Your reservation '{$reservation['meeting_title']}' has been rejected."
+            );
+        }
+
+        return [
+            'success' => true,
+            'message' => 'Reservation status updated successfully.'
+        ];
     }
 
     /**
@@ -170,7 +287,7 @@ class ReservationService
     }
 
     /**
-     * Calculate minimum rooms required for overlapping meetings
+     * Calculate minimum rooms required
      */
     public function calculateMinimumRooms(string $date): int
     {
@@ -206,17 +323,21 @@ class ReservationService
         return $max;
     }
 
-    /**
-     * Generate secure edit token
-     */
+    private function sendEmail(string $to, string $subject, string $message): void
+    {
+        wp_mail(
+            $to,
+            $subject,
+            $message,
+            ['Content-Type: text/plain; charset=UTF-8']
+        );
+    }
+
     private function generateToken(): string
     {
         return bin2hex(random_bytes(16));
     }
 
-    /**
-     * Sanitize reservation data
-     */
     private function sanitizeReservationData(array $data): array
     {
         return [
@@ -232,9 +353,6 @@ class ReservationService
         ];
     }
 
-    /**
-     * Validate reservation fields
-     */
     private function validateReservationData(array $data): bool
     {
         if (
@@ -261,9 +379,6 @@ class ReservationService
         return true;
     }
 
-    /**
-     * Validate maximum reservation duration (8 hours)
-     */
     private function validateMaxDuration(string $start, string $end): bool
     {
         $startTS = strtotime($start);
