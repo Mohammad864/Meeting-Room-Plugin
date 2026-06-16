@@ -4,6 +4,7 @@ namespace MRB\Admin;
 
 use MRB\Database\ReservationRepository;
 use MRB\Services\ReservationService;
+use MRB\Services\MinimumRoomsCalculator;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -11,13 +12,6 @@ if (!defined('ABSPATH')) {
 
 class AdminPage
 {
-    /**
-     * Render main admin page.
-     *
-     * This method decides whether to show:
-     * - reservations list
-     * - edit reservation form
-     */
     public static function render(): void
     {
         if (!current_user_can('manage_options')) {
@@ -35,9 +29,6 @@ class AdminPage
         self::renderListPage();
     }
 
-    /**
-     * Render reservations list page.
-     */
     private static function renderListPage(): void
     {
         $repository = new ReservationRepository();
@@ -62,6 +53,15 @@ class AdminPage
 
         $reservations = $repository->query($args);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Minimum Rooms Calculation
+        |--------------------------------------------------------------------------
+        */
+
+        $calculationDate = $date ?: date('Y-m-d');
+        $minimumRooms = self::calculateMinimumRoomsForDay($calculationDate);
+
         ?>
         <div class="wrap">
             <h1 class="wp-heading-inline">Meeting Room Reservations</h1>
@@ -69,6 +69,11 @@ class AdminPage
             <?php self::renderNotices(); ?>
 
             <hr class="wp-header-end">
+
+            <div style="background:#fff;border:1px solid #ccd0d4;padding:14px;margin-top:20px;margin-bottom:20px;border-radius:6px;">
+                <strong>Minimum Rooms Required for <?php echo esc_html($calculationDate); ?>:</strong>
+                <?php echo esc_html($minimumRooms); ?>
+            </div>
 
             <form method="get" style="margin: 20px 0;">
                 <input type="hidden" name="page" value="mrb-reservations">
@@ -216,6 +221,39 @@ class AdminPage
             </table>
         </div>
         <?php
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Minimum Rooms Calculation Method
+    |--------------------------------------------------------------------------
+    */
+
+    private static function calculateMinimumRoomsForDay(string $date): int
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'mrb_reservations';
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT start_time, end_time
+                 FROM {$table}
+                 WHERE meeting_date = %s
+                 AND status != 'cancelled'
+                 AND status != 'rejected'",
+                $date
+            ),
+            ARRAY_A
+        );
+
+        if (!$rows) {
+            return 0;
+        }
+
+        $calculator = new MinimumRoomsCalculator();
+
+        return $calculator->calculate($rows);
     }
 
     /**
