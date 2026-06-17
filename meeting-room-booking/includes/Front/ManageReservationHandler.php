@@ -84,4 +84,27 @@ class ManageReservationHandler
         wp_redirect(home_url('/reservation/' . $token . '/?cancelled=1'));
         exit;
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | FRONTEND USER NOTICE
+    |--------------------------------------------------------------------------
+    */
+
+    public static function renderFrontendNotice(): void
+    {
+        if (isset($_GET['updated']) && $_GET['updated'] === '1') {
+            echo '<div class="mrb-user-notice mrb-user-notice-success">';
+            echo esc_html__('Your reservation has been updated successfully.', 'meeting-room-booking');
+            echo '</div>';
+            return;
+        }
+
+        if (isset($_GET['cancelled']) && $_GET['cancelled'] === '1') {
+            echo '<div class="mrb-user-notice mrb-user-notice-success">';
+            echo esc_html__('Your reservation has been cancelled successfully.', 'meeting-room-booking');
+            echo '</div>';
+            return;
+        }
+    }
 }

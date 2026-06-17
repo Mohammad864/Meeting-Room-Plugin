@@ -8,6 +8,7 @@ use MRB\Admin\SettingsPage;
 use MRB\Front\ManageReservationHandler;
 use MRB\Database\ReservationRepository;
 use MRB\Services\ReservationService;
+use MRB\Admin\CalendarPage;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -37,10 +38,25 @@ class Plugin
             [AdminPage::class, 'handleStatusChange']
         );
 
-        // SETTINGS SAVE HANDLER (Fix for blank page)
         add_action(
             'admin_post_mrb_save_settings',
             [SettingsPage::class, 'handleSave']
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Calendar
+        |--------------------------------------------------------------------------
+        */
+
+        add_action(
+            'admin_enqueue_scripts',
+            [CalendarPage::class, 'enqueueAssets']
+        );
+
+        add_action(
+            'wp_ajax_mrb_calendar_events',
+            [CalendarPage::class, 'getEvents']
         );
 
         /*
@@ -114,6 +130,15 @@ class Plugin
             [AdminPage::class, 'render'],
             'dashicons-calendar-alt',
             26
+        );
+
+        add_submenu_page(
+            'mrb-reservations',
+            'Calendar View',
+            'Calendar View',
+            'manage_options',
+            'mrb-calendar',
+            [CalendarPage::class, 'render']
         );
 
         $settingsPage = new SettingsPage();
@@ -190,11 +215,61 @@ class Plugin
         return new ManageReservationHandler($this->makeReservationService());
     }
 
+    /**
+     * FRONTEND NOTICE RENDERER (ADDED)
+     */
+    private function renderFrontendNotice(): void
+    {
+        if (isset($_GET['updated']) && $_GET['updated'] === '1') {
+            echo '<div style="max-width:760px;margin:20px auto 0;padding:16px;background:#d1e7dd;color:#0f5132;border:1px solid #badbcc;border-radius:8px;font-family:Arial,sans-serif;">';
+            echo esc_html__('Your reservation has been updated successfully.', 'meeting-room-booking');
+            echo '</div>';
+        }
+
+        if (isset($_GET['cancelled']) && $_GET['cancelled'] === '1') {
+            echo '<div style="max-width:760px;margin:20px auto 0;padding:16px;background:#d1e7dd;color:#0f5132;border:1px solid #badbcc;border-radius:8px;font-family:Arial,sans-serif;">';
+            echo esc_html__('Your reservation has been cancelled successfully.', 'meeting-room-booking');
+            echo '</div>';
+        }
+
+        if (isset($_GET['error'])) {
+
+            $message = '';
+
+            switch ($_GET['error']) {
+                case 'invalid_token':
+                    $message = __('Invalid reservation link.', 'meeting-room-booking');
+                    break;
+
+                case 'not_found':
+                    $message = __('Reservation not found.', 'meeting-room-booking');
+                    break;
+
+                case 'update_failed':
+                    $message = __('Unable to update the reservation.', 'meeting-room-booking');
+                    break;
+
+                case 'cancel_failed':
+                    $message = __('Unable to cancel the reservation.', 'meeting-room-booking');
+                    break;
+            }
+
+            if ($message !== '') {
+                echo '<div style="max-width:760px;margin:20px auto 0;padding:16px;background:#f8d7da;color:#842029;border:1px solid #f5c2c7;border-radius:8px;font-family:Arial,sans-serif;">';
+                echo esc_html($message);
+                echo '</div>';
+            }
+        }
+    }
+
     private function renderReservationManagementPage(array $reservation, string $token): void
     {
         $status = $reservation['status'] ?? '';
 
         get_header();
+
+        /* ADDED: show frontend notices */
+        $this->renderFrontendNotice();
         ?>
 
         <main style="max-width:760px;margin:50px auto;padding:24px;font-family:Arial,sans-serif;">
@@ -295,5 +370,4 @@ class Plugin
         <?php
         get_footer();
     }
-
 }
