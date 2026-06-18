@@ -18,47 +18,52 @@ class ReservationsListTable extends \WP_List_Table
     {
         parent::__construct([
             'singular' => 'reservation',
-            'plural' => 'reservations',
-            'ajax' => false,
+            'plural'   => 'reservations',
+            'ajax'     => false,
         ]);
 
         $this->reservations = new ReservationRepository();
-        $this->rooms = new RoomRepository();
+        $this->rooms        = new RoomRepository();
     }
 
     public function get_columns(): array
     {
         return [
-            'id' => 'ID',
-            'name' => 'Name',
-            'mobile' => 'Mobile',
-            'email' => 'Email',
+            'id'            => 'ID',
+            'name'          => 'Name',
+            'mobile'        => 'Mobile',
+            'email'         => 'Email',
             'meeting_title' => 'Title',
-            'meeting_date' => 'Date',
-            'time' => 'Time',
-            'room' => 'Room',
-            'status' => 'Status',
-            'actions' => 'Actions',
+            'meeting_date'  => 'Date',
+            'time'          => 'Time',
+            'room'          => 'Room',
+            'status'        => 'Status',
+            'actions'       => 'Actions',
         ];
     }
 
     public function prepare_items(): void
     {
-        $perPage = 20;
+        $perPage     = 20;
         $currentPage = $this->get_pagenum();
 
-        $search = sanitize_text_field($_GET['s'] ?? '');
-        $date = sanitize_text_field($_GET['filter_date'] ?? '');
+        $search = isset($_GET['s'])
+            ? sanitize_text_field(wp_unslash($_GET['s']))
+            : '';
+
+        $date = isset($_GET['filter_date'])
+            ? sanitize_text_field(wp_unslash($_GET['filter_date']))
+            : '';
 
         $args = [
             'search' => $search,
-            'date' => $date,
-            'limit' => $perPage,
+            'date'   => $date,
+            'limit'  => $perPage,
             'offset' => ($currentPage - 1) * $perPage,
         ];
 
         $this->items = $this->reservations->query($args);
-        $totalItems = $this->reservations->count($args);
+        $totalItems  = $this->reservations->count($args);
 
         $this->_column_headers = [
             $this->get_columns(),
@@ -68,7 +73,7 @@ class ReservationsListTable extends \WP_List_Table
 
         $this->set_pagination_args([
             'total_items' => $totalItems,
-            'per_page' => $perPage,
+            'per_page'    => $perPage,
             'total_pages' => ceil($totalItems / $perPage),
         ]);
     }
@@ -76,26 +81,53 @@ class ReservationsListTable extends \WP_List_Table
     public function column_default($item, $column_name)
     {
         switch ($column_name) {
+
             case 'id':
                 return esc_html((string) $item['id']);
+
             case 'name':
-                return esc_html($item['first_name'] . ' ' . $item['last_name']);
+                return esc_html(
+                    trim(($item['first_name'] ?? '') . ' ' . ($item['last_name'] ?? ''))
+                );
+
             case 'mobile':
-                return esc_html($item['mobile']);
+                return esc_html($item['mobile'] ?? '');
+
             case 'email':
-                return esc_html($item['email']);
+                if (!empty($item['email'])) {
+                    return '<a href="mailto:' . esc_attr($item['email']) . '">' .
+                        esc_html($item['email']) .
+                        '</a>';
+                }
+                return '-';
+
             case 'meeting_title':
-                return esc_html($item['meeting_title']);
+                return esc_html($item['meeting_title'] ?? '');
+
             case 'meeting_date':
-                return esc_html($item['meeting_date']);
+                return esc_html($item['meeting_date'] ?? '');
+
             case 'time':
-                return esc_html($item['start_time'] . ' - ' . $item['end_time']);
+                return esc_html(
+                    ($item['start_time'] ?? '') . ' - ' . ($item['end_time'] ?? '')
+                );
+
             case 'room':
-                return esc_html($this->rooms->findNameById((int) $item['room_id']));
+
+                if (empty($item['room_id'])) {
+                    return '-';
+                }
+
+                $roomName = $this->rooms->findNameById((int) $item['room_id']);
+
+                return esc_html($roomName ?: ('Room #' . (int)$item['room_id']));
+
             case 'status':
-                return $this->renderStatusBadge($item['status']);
+                return $this->renderStatusBadge($item['status'] ?? 'pending');
+
             case 'actions':
                 return $this->renderActions($item);
+
             default:
                 return '';
         }
@@ -103,10 +135,13 @@ class ReservationsListTable extends \WP_List_Table
 
     private function renderStatusBadge(string $status): string
     {
+        $status = sanitize_key($status);
+
         $colors = [
-            'pending' => '#856404;background:#fff3cd;',
-            'approved' => '#0f5132;background:#d1e7dd;',
-            'rejected' => '#842029;background:#f8d7da;',
+            'pending'   => '#856404;background:#fff3cd;',
+            'approved'  => '#0f5132;background:#d1e7dd;',
+            'rejected'  => '#842029;background:#f8d7da;',
+            'cancelled' => '#555;background:#e2e3e5;',
         ];
 
         $style = $colors[$status] ?? '';
@@ -122,13 +157,24 @@ class ReservationsListTable extends \WP_List_Table
     {
         $id = (int) $item['id'];
 
+        /*
+        |--------------------------------------------------------------------------
+        | FIX: AdminPage expects ?id= not reservation_id
+        |--------------------------------------------------------------------------
+        */
+
         $approveUrl = wp_nonce_url(
-            admin_url('admin-post.php?action=mrb_change_status&status=approved&reservation_id=' . $id),
+            admin_url('admin-post.php?action=mrb_change_status&status=approved&id=' . $id),
             'mrb_change_status_' . $id
         );
 
         $rejectUrl = wp_nonce_url(
-            admin_url('admin-post.php?action=mrb_change_status&status=rejected&reservation_id=' . $id),
+            admin_url('admin-post.php?action=mrb_change_status&status=rejected&id=' . $id),
+            'mrb_change_status_' . $id
+        );
+
+        $pendingUrl = wp_nonce_url(
+            admin_url('admin-post.php?action=mrb_change_status&status=pending&id=' . $id),
             'mrb_change_status_' . $id
         );
 
@@ -140,6 +186,10 @@ class ReservationsListTable extends \WP_List_Table
 
         if ($item['status'] !== 'rejected') {
             $actions[] = '<a href="' . esc_url($rejectUrl) . '" style="color:#b32d2e;">Reject</a>';
+        }
+
+        if ($item['status'] !== 'pending') {
+            $actions[] = '<a href="' . esc_url($pendingUrl) . '">Pending</a>';
         }
 
         if (!empty($item['description'])) {

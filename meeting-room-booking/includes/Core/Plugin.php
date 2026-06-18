@@ -109,7 +109,7 @@ class Plugin
     public function registerReservationEndpoint(): void
     {
         add_rewrite_rule(
-            '^reservation/([a-zA-Z0-9]+)/?$',
+            '^reservation/([a-zA-Z0-9]+)/?',
             'index.php?mrb_token=$matches[1]',
             'top'
         );
@@ -118,6 +118,21 @@ class Plugin
     public function addQueryVars(array $vars): array
     {
         $vars[] = 'mrb_token';
+
+        /*
+        |--------------------------------------------------------------------------
+        | Notice-related query vars
+        |--------------------------------------------------------------------------
+        |
+        | The frontend notice currently reads directly from REQUEST_URI / QUERY_STRING
+        | because this route is manually rendered in template_redirect.
+        | These are still registered for compatibility with WordPress query parsing.
+        |
+        */
+
+        $vars[] = 'error';
+        $vars[] = 'updated';
+        $vars[] = 'cancelled';
 
         return $vars;
     }
@@ -130,7 +145,7 @@ class Plugin
             return;
         }
 
-        $token = sanitize_text_field($token);
+        $token = sanitize_text_field((string) $token);
 
         wp_enqueue_style('mrb-manage-reservation');
 
@@ -153,18 +168,6 @@ class Plugin
 
     public function handleGuestUpdate(): void
     {
-        $token = isset($_POST['token']) ? sanitize_text_field(wp_unslash($_POST['token'])) : '';
-
-        if (
-            !isset($_POST['mrb_nonce']) ||
-            !wp_verify_nonce(
-                sanitize_text_field(wp_unslash($_POST['mrb_nonce'])),
-                'mrb_guest_update_' . $token
-            )
-        ) {
-            wp_die(esc_html__('Security check failed.', 'meeting-room-booking'));
-        }
-
         $handler = $this->makeReservationHandler();
         $handler->handleUpdate();
     }
@@ -184,59 +187,235 @@ class Plugin
         return new ManageReservationHandler($this->makeReservationService());
     }
 
+    private function getFrontendQueryParams(): array
+    {
+        $queryString = '';
+
+        /*
+        |--------------------------------------------------------------------------
+        | Primary source: REQUEST_URI
+        |--------------------------------------------------------------------------
+        |
+        | On this custom /reservation/{token}/ route, WordPress may not expose
+        | query parameters in $_GET because the page is rendered manually inside
+        | template_redirect. Reading REQUEST_URI gives us the real URL query string.
+        |
+        */
+
+        if (!empty($_SERVER['REQUEST_URI'])) {
+            $requestUri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']));
+            $parsedQuery = wp_parse_url($requestUri, PHP_URL_QUERY);
+
+            if (is_string($parsedQuery)) {
+                $queryString = $parsedQuery;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback source: QUERY_STRING
+        |--------------------------------------------------------------------------
+        */
+
+        if ($queryString === '' && !empty($_SERVER['QUERY_STRING'])) {
+            $queryString = sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']));
+        }
+
+        $query = [];
+
+        if ($queryString !== '') {
+            parse_str($queryString, $query);
+        }
+
+        return is_array($query) ? $query : [];
+    }
+
     private function renderFrontendNotice(): void
     {
-        $updated   = isset($_GET['updated']) ? sanitize_text_field(wp_unslash($_GET['updated'])) : '';
-        $cancelled = isset($_GET['cancelled']) ? sanitize_text_field(wp_unslash($_GET['cancelled'])) : '';
-        $error     = isset($_GET['error']) ? sanitize_text_field(wp_unslash($_GET['error'])) : '';
+        $query = $this->getFrontendQueryParams();
+
+        $error = isset($query['error'])
+            ? sanitize_key((string) $query['error'])
+            : '';
+
+        $updated = isset($query['updated'])
+            ? sanitize_text_field((string) $query['updated'])
+            : '';
+
+        $cancelled = isset($query['cancelled'])
+            ? sanitize_text_field((string) $query['cancelled'])
+            : '';
+
+        if ($updated !== '1' && $cancelled !== '1' && $error === '') {
+            return;
+        }
 
         if ($updated === '1') {
-            echo '<div class="mrb-user-notice mrb-user-notice-success">';
+            echo '<div class="mrb-user-notice mrb-user-notice-success" style="background:#d1e7dd;color:#0f5132;padding:15px;margin:20px 0;border:1px solid #badbcc;border-radius:4px;">';
             echo esc_html__('Your reservation has been updated successfully.', 'meeting-room-booking');
             echo '</div>';
+
+            return;
         }
 
         if ($cancelled === '1') {
-            echo '<div class="mrb-user-notice mrb-user-notice-success">';
+            echo '<div class="mrb-user-notice mrb-user-notice-success" style="background:#d1e7dd;color:#0f5132;padding:15px;margin:20px 0;border:1px solid #badbcc;border-radius:4px;">';
             echo esc_html__('Your reservation has been cancelled successfully.', 'meeting-room-booking');
             echo '</div>';
+
+            return;
         }
 
-        if ($error) {
-            $message = $this->getFrontendErrorMessage($error);
-
-            if ($message) {
-                echo '<div class="mrb-user-notice mrb-user-notice-error">';
-                echo esc_html($message);
-                echo '</div>';
-            }
+        if ($error !== '') {
+            echo '<div class="mrb-user-notice mrb-user-notice-error" style="background:#f8d7da;color:#842029;padding:15px;margin:20px 0;border:1px solid #f5c2c7;border-radius:4px;">';
+            echo esc_html($this->getFrontendErrorMessage($error));
+            echo '</div>';
         }
     }
 
     private function getFrontendErrorMessage(string $error): string
     {
-        switch ($error) {
-            case 'conflict':
-                return __('The selected time conflicts with another reservation. Please choose a different time.', 'meeting-room-booking');
+        $messages = [
+            'conflict' => __(
+                'The selected time conflicts with another reservation. Please choose a different time.',
+                'meeting-room-booking'
+            ),
 
-            case 'not_found':
-                return __('Reservation not found.', 'meeting-room-booking');
+            'time_conflict' => __(
+                'The selected time conflicts with another reservation. Please choose a different time.',
+                'meeting-room-booking'
+            ),
 
-            case 'security':
-                return __('Security validation failed. Please try again.', 'meeting-room-booking');
+            'not_found' => __(
+                'Reservation not found or the management link is invalid.',
+                'meeting-room-booking'
+            ),
 
-            case 'invalid_request':
-                return __('Invalid request. Please review your input and try again.', 'meeting-room-booking');
+            'reservation_not_found' => __(
+                'Reservation not found or the management link is invalid.',
+                'meeting-room-booking'
+            ),
 
-            case 'update_failed':
-                return __('We could not update your reservation. Please try again.', 'meeting-room-booking');
+            'security' => __(
+                'Security validation failed. Please refresh the page and try again.',
+                'meeting-room-booking'
+            ),
 
-            case 'cancel_failed':
-                return __('We could not cancel your reservation. Please try again.', 'meeting-room-booking');
+            'invalid_request' => __(
+                'Invalid request. Please review your input and try again.',
+                'meeting-room-booking'
+            ),
 
-            default:
-                return __('Something went wrong. Please try again.', 'meeting-room-booking');
-        }
+            'invalid_request_method' => __(
+                'Invalid request method. Please try again.',
+                'meeting-room-booking'
+            ),
+
+            'missing_token' => __(
+                'The reservation token is missing. Please use the link from your confirmation email.',
+                'meeting-room-booking'
+            ),
+
+            'update_failed' => __(
+                'We could not update your reservation. Please try again.',
+                'meeting-room-booking'
+            ),
+
+            'cancel_failed' => __(
+                'We could not cancel your reservation. Please try again.',
+                'meeting-room-booking'
+            ),
+
+            'max_duration_exceeded' => __(
+                'The reservation duration exceeds the maximum allowed time.',
+                'meeting-room-booking'
+            ),
+
+            'min_duration_not_met' => __(
+                'The reservation duration is shorter than the minimum allowed time.',
+                'meeting-room-booking'
+            ),
+
+            'invalid_duration' => __(
+                'The selected reservation duration is invalid.',
+                'meeting-room-booking'
+            ),
+
+            'invalid_time_range' => __(
+                'The selected start and end time are invalid.',
+                'meeting-room-booking'
+            ),
+
+            'invalid_datetime' => __(
+                'The selected reservation date or time is invalid.',
+                'meeting-room-booking'
+            ),
+
+            'past_meeting_date' => __(
+                'The meeting date cannot be in the past.',
+                'meeting-room-booking'
+            ),
+
+            'past_meeting_time' => __(
+                'The meeting time cannot be in the past.',
+                'meeting-room-booking'
+            ),
+
+            'missing_first_name' => __(
+                'Please enter your first name.',
+                'meeting-room-booking'
+            ),
+
+            'missing_last_name' => __(
+                'Please enter your last name.',
+                'meeting-room-booking'
+            ),
+
+            'missing_email' => __(
+                'Please enter your email address.',
+                'meeting-room-booking'
+            ),
+
+            'invalid_email' => __(
+                'Please enter a valid email address.',
+                'meeting-room-booking'
+            ),
+
+            'missing_mobile' => __(
+                'Please enter your mobile number.',
+                'meeting-room-booking'
+            ),
+
+            'missing_meeting_title' => __(
+                'Please enter a meeting title.',
+                'meeting-room-booking'
+            ),
+
+            'missing_meeting_date' => __(
+                'Please select a meeting date.',
+                'meeting-room-booking'
+            ),
+
+            'missing_start_time' => __(
+                'Please select a start time.',
+                'meeting-room-booking'
+            ),
+
+            'missing_end_time' => __(
+                'Please select an end time.',
+                'meeting-room-booking'
+            ),
+
+            'database_error' => __(
+                'A database error occurred. Please try again.',
+                'meeting-room-booking'
+            ),
+        ];
+
+        return $messages[$error] ?? __(
+            'Something went wrong. Please try again.',
+            'meeting-room-booking'
+        );
     }
 
     private function renderStatusBadge(string $status): string
@@ -252,7 +431,7 @@ class Plugin
 
     private function renderReservationManagementPage(array $reservation, string $token): void
     {
-        $status = isset($reservation['status']) ? (string) $reservation['status'] : '';
+        $status    = isset($reservation['status']) ? (string) $reservation['status'] : '';
         $canManage = !in_array($status, ['cancelled', 'rejected'], true);
 
         get_header();
@@ -279,48 +458,74 @@ class Plugin
 
                 <div class="mrb-details-grid">
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Name', 'meeting-room-booking'); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Name', 'meeting-room-booking'); ?>
+                        </span>
                         <span class="mrb-detail-value">
                             <?php echo esc_html(trim(($reservation['first_name'] ?? '') . ' ' . ($reservation['last_name'] ?? ''))); ?>
                         </span>
                     </div>
 
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Email', 'meeting-room-booking'); ?></span>
-                        <span class="mrb-detail-value"><?php echo esc_html($reservation['email'] ?? ''); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Email', 'meeting-room-booking'); ?>
+                        </span>
+                        <span class="mrb-detail-value">
+                            <?php echo esc_html($reservation['email'] ?? ''); ?>
+                        </span>
                     </div>
 
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Mobile', 'meeting-room-booking'); ?></span>
-                        <span class="mrb-detail-value"><?php echo esc_html($reservation['mobile'] ?? ''); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Mobile', 'meeting-room-booking'); ?>
+                        </span>
+                        <span class="mrb-detail-value">
+                            <?php echo esc_html($reservation['mobile'] ?? ''); ?>
+                        </span>
                     </div>
 
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Meeting Title', 'meeting-room-booking'); ?></span>
-                        <span class="mrb-detail-value"><?php echo esc_html($reservation['meeting_title'] ?? ''); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Meeting Title', 'meeting-room-booking'); ?>
+                        </span>
+                        <span class="mrb-detail-value">
+                            <?php echo esc_html($reservation['meeting_title'] ?? ''); ?>
+                        </span>
                     </div>
 
                     <?php if (!empty($reservation['room_name'])) : ?>
                         <div class="mrb-detail-item">
-                            <span class="mrb-detail-label"><?php echo esc_html__('Room', 'meeting-room-booking'); ?></span>
-                            <span class="mrb-detail-value"><?php echo esc_html($reservation['room_name']); ?></span>
+                            <span class="mrb-detail-label">
+                                <?php echo esc_html__('Room', 'meeting-room-booking'); ?>
+                            </span>
+                            <span class="mrb-detail-value">
+                                <?php echo esc_html($reservation['room_name']); ?>
+                            </span>
                         </div>
                     <?php endif; ?>
 
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Date', 'meeting-room-booking'); ?></span>
-                        <span class="mrb-detail-value"><?php echo esc_html($reservation['meeting_date'] ?? ''); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Date', 'meeting-room-booking'); ?>
+                        </span>
+                        <span class="mrb-detail-value">
+                            <?php echo esc_html($reservation['meeting_date'] ?? ''); ?>
+                        </span>
                     </div>
 
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Time', 'meeting-room-booking'); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Time', 'meeting-room-booking'); ?>
+                        </span>
                         <span class="mrb-detail-value">
                             <?php echo esc_html(($reservation['start_time'] ?? '') . ' - ' . ($reservation['end_time'] ?? '')); ?>
                         </span>
                     </div>
 
                     <div class="mrb-detail-item">
-                        <span class="mrb-detail-label"><?php echo esc_html__('Status', 'meeting-room-booking'); ?></span>
+                        <span class="mrb-detail-label">
+                            <?php echo esc_html__('Status', 'meeting-room-booking'); ?>
+                        </span>
                         <span class="mrb-detail-value">
                             <?php echo wp_kses_post($this->renderStatusBadge($status)); ?>
                         </span>
@@ -328,8 +533,12 @@ class Plugin
 
                     <?php if (!empty($reservation['description'])) : ?>
                         <div class="mrb-detail-item mrb-detail-item-full">
-                            <span class="mrb-detail-label"><?php echo esc_html__('Description', 'meeting-room-booking'); ?></span>
-                            <span class="mrb-detail-value"><?php echo esc_html($reservation['description']); ?></span>
+                            <span class="mrb-detail-label">
+                                <?php echo esc_html__('Description', 'meeting-room-booking'); ?>
+                            </span>
+                            <span class="mrb-detail-value">
+                                <?php echo esc_html($reservation['description']); ?>
+                            </span>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -366,7 +575,9 @@ class Plugin
 
                             <div class="mrb-form-grid">
                                 <div class="mrb-form-group">
-                                    <label for="mrb_first_name"><?php echo esc_html__('First Name', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_first_name">
+                                        <?php echo esc_html__('First Name', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_first_name"
                                         class="mrb-input"
@@ -378,7 +589,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group">
-                                    <label for="mrb_last_name"><?php echo esc_html__('Last Name', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_last_name">
+                                        <?php echo esc_html__('Last Name', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_last_name"
                                         class="mrb-input"
@@ -390,7 +603,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group">
-                                    <label for="mrb_email"><?php echo esc_html__('Email', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_email">
+                                        <?php echo esc_html__('Email', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_email"
                                         class="mrb-input"
@@ -402,7 +617,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group">
-                                    <label for="mrb_mobile"><?php echo esc_html__('Mobile', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_mobile">
+                                        <?php echo esc_html__('Mobile', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_mobile"
                                         class="mrb-input"
@@ -414,7 +631,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group mrb-form-group-full">
-                                    <label for="mrb_meeting_title"><?php echo esc_html__('Meeting Title', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_meeting_title">
+                                        <?php echo esc_html__('Meeting Title', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_meeting_title"
                                         class="mrb-input"
@@ -426,7 +645,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group">
-                                    <label for="mrb_meeting_date"><?php echo esc_html__('Date', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_meeting_date">
+                                        <?php echo esc_html__('Date', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_meeting_date"
                                         class="mrb-input"
@@ -438,7 +659,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group">
-                                    <label for="mrb_start_time"><?php echo esc_html__('Start Time', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_start_time">
+                                        <?php echo esc_html__('Start Time', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_start_time"
                                         class="mrb-input"
@@ -450,7 +673,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group">
-                                    <label for="mrb_end_time"><?php echo esc_html__('End Time', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_end_time">
+                                        <?php echo esc_html__('End Time', 'meeting-room-booking'); ?>
+                                    </label>
                                     <input
                                         id="mrb_end_time"
                                         class="mrb-input"
@@ -462,7 +687,9 @@ class Plugin
                                 </div>
 
                                 <div class="mrb-form-group mrb-form-group-full">
-                                    <label for="mrb_description"><?php echo esc_html__('Description', 'meeting-room-booking'); ?></label>
+                                    <label for="mrb_description">
+                                        <?php echo esc_html__('Description', 'meeting-room-booking'); ?>
+                                    </label>
                                     <textarea
                                         id="mrb_description"
                                         class="mrb-textarea"
@@ -503,7 +730,7 @@ class Plugin
                     <form
                         method="post"
                         action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
-                        onsubmit="return confirm('Are you sure you want to cancel this reservation?');"
+                        onsubmit="return confirm('<?php echo esc_js(__('Are you sure you want to cancel this reservation?', 'meeting-room-booking')); ?>');"
                     >
                         <input type="hidden" name="action" value="mrb_guest_cancel">
                         <input type="hidden" name="token" value="<?php echo esc_attr($token); ?>">

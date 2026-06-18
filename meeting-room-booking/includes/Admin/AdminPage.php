@@ -5,6 +5,8 @@ namespace MRB\Admin;
 use MRB\Database\ReservationRepository;
 use MRB\Services\ReservationService;
 use MRB\Services\MinimumRoomsCalculator;
+use MRB\Services\EmailNotificationService;
+use WP_Error;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -495,6 +497,8 @@ class AdminPage
             wp_die('You do not have permission to perform this action.');
         }
 
+        $debugMode = false;
+
         $id = isset($_POST['reservation_id']) ? absint($_POST['reservation_id']) : 0;
 
         if ($id <= 0) {
@@ -509,35 +513,57 @@ class AdminPage
             wp_die('Invalid nonce.');
         }
 
-        $repository = new ReservationRepository();
-        $service    = new ReservationService($repository);
-
-        $updated = $service->adminEdit($id, wp_unslash($_POST));
-
+        $repository  = new ReservationRepository();
+        $service     = new ReservationService($repository);
         $redirectUrl = admin_url('admin.php?page=mrb-reservations&action=edit&id=' . $id);
 
         $updated = $service->adminEdit($id, wp_unslash($_POST));
 
-        if (!$updated) {
-            echo '<h2>Reservation Update Debug</h2>';
+        if (is_wp_error($updated)) {
+            error_log('[MRB] Admin update failed: ' . $updated->get_error_message());
 
-            echo '<h3>POST Data</h3>';
-            echo '<pre>';
-            print_r($_POST);
-            echo '</pre>';
-
-            echo '<p><strong>Update returned FALSE.</strong></p>';
-
-            global $wpdb;
-
-            if (!empty($wpdb->last_error)) {
-                echo '<h3>Database Error</h3>';
-                echo '<pre>' . esc_html($wpdb->last_error) . '</pre>';
+            if ($debugMode) {
+                self::renderUpdateDebugScreen($updated, $_POST);
+                exit;
             }
 
-            echo '<p>Fix the issue and then remove this debug code.</p>';
-
+            wp_safe_redirect(add_query_arg([
+                'mrb_error'     => 'update_failed',
+                'mrb_error_msg' => rawurlencode($updated->get_error_message()),
+            ], $redirectUrl));
             exit;
+        }
+
+        if (!$updated) {
+            error_log('[MRB] Admin update failed: service returned false.');
+
+            if ($debugMode) {
+                self::renderUpdateDebugScreen(null, $_POST);
+                exit;
+            }
+
+            wp_safe_redirect(add_query_arg('mrb_error', 'update_failed', $redirectUrl));
+            exit;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Send reservation updated email after successful admin edit
+        |--------------------------------------------------------------------------
+        */
+
+        $reservation = $repository->findById($id);
+
+        if ($reservation) {
+            try {
+                $emailService = new EmailNotificationService();
+
+                if (method_exists($emailService, 'sendReservationUpdatedEmails')) {
+                    $emailService->sendReservationUpdatedEmails($reservation);
+                }
+            } catch (\Throwable $e) {
+                error_log('[MRB] Failed to send admin reservation update email: ' . $e->getMessage());
+            }
         }
 
         wp_safe_redirect(add_query_arg('mrb_message', 'updated', $redirectUrl));
@@ -556,7 +582,7 @@ class AdminPage
             wp_die('You do not have permission to perform this action.');
         }
 
-        $id = isset($_GET['id']) ? absint($_GET['id']) : 0;
+        $id     = isset($_GET['id']) ? absint($_GET['id']) : 0;
         $status = isset($_GET['status']) ? sanitize_key($_GET['status']) : '';
 
         if ($id <= 0) {
@@ -569,33 +595,110 @@ class AdminPage
             wp_die('Invalid reservation status.');
         }
 
-        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(
-            sanitize_text_field(wp_unslash($_GET['_wpnonce'])),
-            'mrb_change_status_' . $id
-        )) {
+        if (
+            !isset($_GET['_wpnonce']) ||
+            !wp_verify_nonce(
+                sanitize_text_field(wp_unslash($_GET['_wpnonce'])),
+                'mrb_change_status_' . $id
+            )
+        ) {
             wp_die('Invalid nonce.');
         }
 
-        $repository = new ReservationRepository();
-        $service    = new ReservationService($repository);
+        $repository  = new ReservationRepository();
+        $service     = new ReservationService($repository);
+        $redirectUrl = admin_url('admin.php?page=mrb-reservations');
 
         $result = $service->changeStatus($id, $status);
 
-        $redirectUrl = admin_url('admin.php?page=mrb-reservations');
+        if (is_wp_error($result)) {
+            error_log('[MRB] Status change failed: ' . $result->get_error_message());
 
-        if (!$result['success']) {
             wp_safe_redirect(add_query_arg([
-                'mrb_error' => 'status_failed',
-                'mrb_error_msg' => urlencode($result['message']),
+                'mrb_error'     => 'status_failed',
+                'mrb_error_msg' => rawurlencode($result->get_error_message()),
             ], $redirectUrl));
             exit;
         }
 
+        if (
+            !is_array($result) ||
+            empty($result['success'])
+        ) {
+            $message = is_array($result) && !empty($result['message'])
+                ? $result['message']
+                : 'Failed to update reservation status.';
+
+            error_log('[MRB] Status change failed: ' . $message);
+
+            wp_safe_redirect(add_query_arg([
+                'mrb_error'     => 'status_failed',
+                'mrb_error_msg' => rawurlencode($message),
+            ], $redirectUrl));
+            exit;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Send status change email after successful admin status update
+        |--------------------------------------------------------------------------
+        */
+
+        $reservation = $repository->findById($id);
+
+        if ($reservation) {
+            try {
+                $emailService = new EmailNotificationService();
+
+                if (method_exists($emailService, 'sendReservationStatusChangedEmails')) {
+                    $emailService->sendReservationStatusChangedEmails($reservation);
+                }
+            } catch (\Throwable $e) {
+                error_log('[MRB] Failed to send admin status change email: ' . $e->getMessage());
+            }
+        }
+
+        $message = !empty($result['message'])
+            ? $result['message']
+            : 'Reservation status updated successfully.';
+
         wp_safe_redirect(add_query_arg([
             'mrb_message' => 'status_updated',
-            'mrb_msg' => urlencode($result['message']),
+            'mrb_msg'     => rawurlencode($message),
         ], $redirectUrl));
         exit;
+    }
+
+    /**
+     * Render debug screen for reservation update failures.
+     */
+    private static function renderUpdateDebugScreen($error = null, array $postData = []): void
+    {
+        echo '<div class="wrap">';
+        echo '<h1>Reservation Update Debug</h1>';
+
+        if ($error instanceof WP_Error) {
+            echo '<h2>WP_Error</h2>';
+            echo '<p><strong>Code:</strong> ' . esc_html($error->get_error_code()) . '</p>';
+            echo '<p><strong>Message:</strong> ' . esc_html($error->get_error_message()) . '</p>';
+        } else {
+            echo '<p><strong>Update returned FALSE.</strong></p>';
+        }
+
+        echo '<h2>POST Data</h2>';
+        echo '<pre>';
+        print_r($postData);
+        echo '</pre>';
+
+        global $wpdb;
+
+        if (!empty($wpdb->last_error)) {
+            echo '<h2>Database Error</h2>';
+            echo '<pre>' . esc_html($wpdb->last_error) . '</pre>';
+        }
+
+        echo '<p>Set <code>$debugMode = false</code> when debugging is finished.</p>';
+        echo '</div>';
     }
 
     /**
@@ -607,24 +710,28 @@ class AdminPage
         $error   = isset($_GET['mrb_error']) ? sanitize_key($_GET['mrb_error']) : '';
 
         if ($message === 'updated') {
-            echo '<div class="notice notice-success is-dismissible"><p>Reservation updated successfully.</p></div>';
+            echo '<div class="notice notice-success is-dismissible"><p>Reservation updated successfully. Notification email was queued/sent if mail is configured.</p></div>';
         }
 
         if ($message === 'status_updated') {
             $msg = isset($_GET['mrb_msg'])
-                ? urldecode(wp_unslash($_GET['mrb_msg']))
+                ? sanitize_text_field(wp_unslash(rawurldecode($_GET['mrb_msg'])))
                 : 'Reservation status updated successfully.';
 
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($msg) . '</p></div>';
         }
 
         if ($error === 'update_failed') {
-            echo '<div class="notice notice-error is-dismissible"><p>Failed to update reservation.</p></div>';
+            $msg = isset($_GET['mrb_error_msg'])
+                ? sanitize_text_field(wp_unslash(rawurldecode($_GET['mrb_error_msg'])))
+                : 'Failed to update reservation.';
+
+            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($msg) . '</p></div>';
         }
 
         if ($error === 'status_failed') {
             $msg = isset($_GET['mrb_error_msg'])
-                ? urldecode(wp_unslash($_GET['mrb_error_msg']))
+                ? sanitize_text_field(wp_unslash(rawurldecode($_GET['mrb_error_msg'])))
                 : 'Failed to update reservation status.';
 
             echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($msg) . '</p></div>';

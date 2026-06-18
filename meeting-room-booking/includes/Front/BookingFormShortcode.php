@@ -3,6 +3,7 @@
 namespace MRB\Front;
 
 use MRB\Services\ReservationService;
+use MRB\Services\EmailNotificationService;
 use MRB\Database\ReservationRepository;
 
 if (!defined('ABSPATH')) {
@@ -17,11 +18,18 @@ class BookingFormShortcode
 
         $message = '';
 
-        if (!empty($_GET['mrb_status'])) {
+        $status = isset($_GET['mrb_status'])
+            ? sanitize_key(wp_unslash($_GET['mrb_status']))
+            : '';
 
-            if ($_GET['mrb_status'] === 'success') {
+        if ($status === 'success') {
 
-                $token = sanitize_text_field($_GET['token'] ?? '');
+            $token = isset($_GET['token'])
+                ? sanitize_text_field(wp_unslash($_GET['token']))
+                : '';
+
+            if ($token) {
+
                 $manageLink = home_url('/reservation/' . $token);
 
                 $message = '
@@ -31,16 +39,18 @@ class BookingFormShortcode
                     <a class="mrb-manage-link" href="' . esc_url($manageLink) . '">' . esc_html($manageLink) . '</a>
                 </div>';
             }
+        }
 
-            if ($_GET['mrb_status'] === 'error') {
+        if ($status === 'error') {
 
-                $error = sanitize_text_field($_GET['mrb_error'] ?? 'Something went wrong.');
+            $error = isset($_GET['mrb_error'])
+                ? sanitize_text_field(wp_unslash($_GET['mrb_error']))
+                : 'Something went wrong.';
 
-                $message = '
-                <div class="mrb-notice mrb-notice-error">
-                    ' . esc_html($error) . '
-                </div>';
-            }
+            $message = '
+            <div class="mrb-notice mrb-notice-error">
+                ' . esc_html($error) . '
+            </div>';
         }
 
         ob_start();
@@ -127,10 +137,13 @@ class BookingFormShortcode
 
     public static function handleSubmit(): void
     {
-        if (empty($_POST['mrb_nonce']) || !wp_verify_nonce(
-            sanitize_text_field(wp_unslash($_POST['mrb_nonce'])),
-            'mrb_submit_booking'
-        )) {
+        if (
+            empty($_POST['mrb_nonce']) ||
+            !wp_verify_nonce(
+                sanitize_text_field(wp_unslash($_POST['mrb_nonce'])),
+                'mrb_submit_booking'
+            )
+        ) {
             wp_die('Invalid nonce.');
         }
 
@@ -139,7 +152,11 @@ class BookingFormShortcode
 
         $result = $service->create(wp_unslash($_POST));
 
-        $redirectUrl = wp_get_referer() ?: home_url();
+        $redirectUrl = wp_get_referer();
+
+        if (!$redirectUrl) {
+            $redirectUrl = home_url();
+        }
 
         if (!$result['success']) {
 
@@ -151,6 +168,20 @@ class BookingFormShortcode
             ], $redirectUrl));
 
             exit;
+        }
+
+        /**
+         * Send email notifications
+         */
+        if (!empty($result['reservation_id'])) {
+
+            $reservation = $repository->findById((int) $result['reservation_id']);
+
+            if ($reservation) {
+
+                $emailService = new EmailNotificationService();
+                $emailService->sendReservationCreatedEmails($reservation);
+            }
         }
 
         wp_safe_redirect(add_query_arg([
