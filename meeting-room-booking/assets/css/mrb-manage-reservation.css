@@ -1,0 +1,355 @@
+﻿.mrb-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mrb-status-confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mrb-status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.mrb-status-cancelled,
+.mrb-status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+/* -------------------------------------------------------
+MRB – Meeting Room Booking UI
+------------------------------------------------------- */
+
+:root {
+  --mrb-primary: #2563eb;
+  --mrb-primary-hover: #1d4ed8;
+
+  --mrb-success: #16a34a;
+  --mrb-success-hover: #15803d;
+
+  --mrb-danger: #dc2626;
+  --mrb-danger-hover: #b91c1c;
+
+  --mrb-border: #e5e7eb;
+  --mrb-muted: #6b7280;
+  --mrb-bg-soft: #f9fafb;
+
+  --mrb-radius: 10px;
+
+  --mrb-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --mrb-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+/* -------------------------------------------------------
+Container
+------------------------------------------------------- */
+
+.mrb-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 20px;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+/* -------------------------------------------------------
+Page Header
+------------------------------------------------------- */
+
+.mrb-page-header {
+  margin-bottom: 30px;
+}
+
+.mrb-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.mrb-page-subtitle {
+  color: var(--mrb-muted);
+  font-size: 15px;
+}
+
+/* -------------------------------------------------------
+Cards
+------------------------------------------------------- */
+
+.mrb-card {
+  background: white;
+  border: 1px solid var(--mrb-border);
+  border-radius: var(--mrb-radius);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--mrb-shadow-sm);
+}
+
+.mrb-card-header {
+  margin-bottom: 18px;
+}
+
+.mrb-card-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mrb-card-actions {
+  margin-bottom: 10px;
+}
+
+/* -------------------------------------------------------
+Panels
+------------------------------------------------------- */
+
+.mrb-panel {
+  margin-top: 18px;
+  padding: 20px;
+  background: var(--mrb-bg-soft);
+  border-radius: var(--mrb-radius);
+  border: 1px solid var(--mrb-border);
+}
+
+.mrb-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.mrb-panel-text {
+  color: var(--mrb-muted);
+  margin-bottom: 12px;
+}
+
+.mrb-danger-panel {
+  border-left: 4px solid var(--mrb-danger);
+}
+
+/* -------------------------------------------------------
+Reservation Details Grid
+------------------------------------------------------- */
+
+.mrb-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 30px;
+}
+
+.mrb-detail-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.mrb-detail-item-full {
+  grid-column: 1 / -1;
+}
+
+.mrb-detail-label {
+  font-size: 12px;
+  color: var(--mrb-muted);
+  margin-bottom: 4px;
+}
+
+.mrb-detail-value {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* -------------------------------------------------------
+Forms
+------------------------------------------------------- */
+
+.mrb-form {
+  margin-top: 10px;
+}
+
+.mrb-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.mrb-form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.mrb-form-group-full {
+  grid-column: 1 / -1;
+}
+
+.mrb-form-group label {
+  font-size: 13px;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+/* -------------------------------------------------------
+Inputs
+------------------------------------------------------- */
+
+.mrb-input,
+.mrb-textarea,
+select.mrb-input {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--mrb-border);
+  font-size: 14px;
+  background: white;
+
+  transition:
+    border 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.mrb-input:focus,
+.mrb-textarea:focus {
+  outline: none;
+  border-color: var(--mrb-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* -------------------------------------------------------
+Buttons
+------------------------------------------------------- */
+
+.mrb-btn {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 6px;
+
+  border: 1px solid transparent;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  text-decoration: none;
+
+  transition:
+    background 0.15s ease,
+    transform 0.05s ease;
+}
+
+.mrb-btn:active {
+  transform: translateY(1px);
+}
+
+.mrb-btn-primary {
+  background: var(--mrb-primary);
+  color: white;
+}
+
+.mrb-btn-primary:hover {
+  background: var(--mrb-primary-hover);
+}
+
+.mrb-btn-success {
+  background: var(--mrb-success);
+  color: white;
+}
+
+.mrb-btn-success:hover {
+  background: var(--mrb-success-hover);
+}
+
+.mrb-btn-danger {
+  background: var(--mrb-danger);
+  color: white;
+}
+
+.mrb-btn-danger:hover {
+  background: var(--mrb-danger-hover);
+}
+
+.mrb-form-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+}
+
+/* -------------------------------------------------------
+Status Badges
+------------------------------------------------------- */
+
+.mrb-status-badge {
+  display: inline-block;
+
+  padding: 4px 10px;
+
+  border-radius: 999px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+}
+
+.mrb-status-confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mrb-status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.mrb-status-cancelled,
+.mrb-status-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* -------------------------------------------------------
+User Notices
+------------------------------------------------------- */
+
+.mrb-user-notice {
+  padding: 14px 16px;
+
+  border-radius: 8px;
+
+  margin-bottom: 20px;
+
+  font-size: 14px;
+
+  font-weight: 500;
+}
+
+.mrb-user-notice-success {
+  background: #ecfdf5;
+  color: #065f46;
+
+  border: 1px solid #a7f3d0;
+}
+
+.mrb-user-notice-error {
+  background: #fef2f2;
+  color: #991b1b;
+
+  border: 1px solid #fecaca;
+}
+
+/* -------------------------------------------------------
+Responsive
+------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  .mrb-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mrb-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

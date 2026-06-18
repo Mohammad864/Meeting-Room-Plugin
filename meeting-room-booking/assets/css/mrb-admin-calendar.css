@@ -1,0 +1,275 @@
+﻿/* -------------------------------------------------------
+MRB Admin Calendar
+Matches frontend form UI
+------------------------------------------------------- */
+
+:root {
+  --mrb-primary: #2563eb;
+  --mrb-primary-hover: #1d4ed8;
+
+  --mrb-success: #16a34a;
+  --mrb-warning: #f59e0b;
+  --mrb-danger: #dc2626;
+  --mrb-muted: #6b7280;
+
+  --mrb-border: #e5e7eb;
+  --mrb-bg-soft: #f9fafb;
+
+  --mrb-radius: 10px;
+
+  --mrb-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --mrb-shadow-md: 0 10px 22px rgba(0, 0, 0, 0.08);
+}
+
+/* -------------------------------------------------------
+PAGE
+------------------------------------------------------- */
+
+.mrb-admin-wrap {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+.mrb-admin-page-header {
+  margin-bottom: 22px;
+}
+
+.mrb-admin-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.mrb-admin-page-subtitle {
+  margin-top: 6px;
+  color: var(--mrb-muted);
+  font-size: 14px;
+}
+
+/* -------------------------------------------------------
+CARD
+------------------------------------------------------- */
+
+.mrb-admin-card {
+  background: #fff;
+  border: 1px solid var(--mrb-border);
+  border-radius: var(--mrb-radius);
+  box-shadow: var(--mrb-shadow-sm);
+  overflow: hidden;
+}
+
+.mrb-admin-card-body {
+  padding: 22px;
+}
+
+/* -------------------------------------------------------
+LEGEND
+------------------------------------------------------- */
+
+.mrb-calendar-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.mrb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.mrb-badge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* statuses */
+
+.mrb-badge-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+.mrb-badge-pending::before {
+  background: #f59e0b;
+}
+
+.mrb-badge-confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+.mrb-badge-confirmed::before {
+  background: #16a34a;
+}
+
+.mrb-badge-rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.mrb-badge-rejected::before {
+  background: #dc2626;
+}
+
+.mrb-badge-cancelled {
+  background: #e5e7eb;
+  color: #374151;
+}
+.mrb-badge-cancelled::before {
+  background: #6b7280;
+}
+
+/* -------------------------------------------------------
+FILTER BAR
+------------------------------------------------------- */
+
+.mrb-filter-bar {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.mrb-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mrb-filter-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.mrb-filter-group select {
+  min-width: 220px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--mrb-border);
+  background: #fff;
+}
+
+.mrb-filter-group select:focus {
+  border-color: var(--mrb-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+/* -------------------------------------------------------
+CALENDAR CONTAINER
+------------------------------------------------------- */
+
+.mrb-admin-calendar {
+  background: #fff;
+  border: 1px solid var(--mrb-border);
+  border-radius: var(--mrb-radius);
+  padding: 18px;
+}
+
+/* -------------------------------------------------------
+FULLCALENDAR
+------------------------------------------------------- */
+
+.mrb-admin-calendar .fc-toolbar {
+  margin-bottom: 16px;
+}
+
+.mrb-admin-calendar .fc-toolbar-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.mrb-admin-calendar .fc-button {
+  border-radius: 6px;
+  border: 1px solid var(--mrb-border);
+  background: #fff;
+  color: #374151;
+  padding: 6px 12px;
+  font-weight: 500;
+}
+
+.mrb-admin-calendar .fc-button:hover {
+  background: var(--mrb-bg-soft);
+}
+
+.mrb-admin-calendar .fc-button-primary {
+  background: var(--mrb-primary);
+  border-color: var(--mrb-primary);
+  color: #fff;
+}
+
+.mrb-admin-calendar .fc-button-primary:hover {
+  background: var(--mrb-primary-hover);
+  border-color: var(--mrb-primary-hover);
+}
+
+/* -------------------------------------------------------
+EVENTS
+------------------------------------------------------- */
+
+.mrb-admin-calendar .fc-event {
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.mrb-admin-calendar .fc-event:hover {
+  filter: brightness(0.95);
+}
+
+/* remove small dot */
+
+.mrb-admin-calendar .fc-daygrid-event-dot {
+  display: none;
+}
+
+/* day hover */
+
+.mrb-admin-calendar .fc-daygrid-day:hover {
+  background: #fafafa;
+}
+
+/* today highlight */
+
+.mrb-admin-calendar .fc-day-today {
+  background: #eff6ff !important;
+}
+
+/* -------------------------------------------------------
+LOADING STATE
+------------------------------------------------------- */
+
+.mrb-calendar-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------
+RESPONSIVE
+------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .mrb-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mrb-filter-group select {
+    width: 100%;
+  }
+}

@@ -2,8 +2,6 @@
 
 namespace MRB\Admin;
 
-use MRB\Database\ReservationRepository;
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -16,53 +14,92 @@ class CalendarPage
     public static function render(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die('You do not have permission to access this page.');
+            wp_die(esc_html__('You do not have permission to access this page.', 'meeting-room-booking'));
         }
-
         ?>
-        <div class="wrap">
-            <h1>Reservation Calendar</h1>
 
-            <div style="margin: 15px 0; padding: 12px; background: #fff; border: 1px solid #ccd0d4; border-radius: 6px;">
-                <strong>Legend:</strong>
+        <div class="wrap mrb-admin-wrap">
 
-                <span style="display:inline-block;margin-left:15px;">
-                    <span style="display:inline-block;width:12px;height:12px;background:#f0ad4e;border-radius:50%;"></span>
-                    Pending
-                </span>
+            <div class="mrb-admin-page-header">
+                <div>
+                    <h1 class="mrb-admin-page-title">
+                        <?php esc_html_e('Reservation Calendar', 'meeting-room-booking'); ?>
+                    </h1>
 
-                <span style="display:inline-block;margin-left:15px;">
-                    <span style="display:inline-block;width:12px;height:12px;background:#46b450;border-radius:50%;"></span>
-                    Approved
-                </span>
-
-                <span style="display:inline-block;margin-left:15px;">
-                    <span style="display:inline-block;width:12px;height:12px;background:#dc3232;border-radius:50%;"></span>
-                    Rejected
-                </span>
-
-                <span style="display:inline-block;margin-left:15px;">
-                    <span style="display:inline-block;width:12px;height:12px;background:#666666;border-radius:50%;"></span>
-                    Cancelled
-                </span>
+                    <p class="mrb-admin-page-subtitle">
+                        <?php esc_html_e('View and manage meeting room reservations in a calendar view.', 'meeting-room-booking'); ?>
+                    </p>
+                </div>
             </div>
 
-            <div style="margin-bottom:15px;">
-                <label for="mrb-calendar-status-filter">
-                    <strong>Status:</strong>
-                </label>
+            <div class="mrb-admin-card">
+                <div class="mrb-admin-card-body">
 
-                <select id="mrb-calendar-status-filter">
-                    <option value="">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+                    <div class="mrb-calendar-legend">
+                        <strong class="mrb-calendar-legend-title">
+                            <?php esc_html_e('Legend:', 'meeting-room-booking'); ?>
+                        </strong>
+
+                        <span class="mrb-badge mrb-badge-pending">
+                            <?php esc_html_e('Pending', 'meeting-room-booking'); ?>
+                        </span>
+
+                        <span class="mrb-badge mrb-badge-confirmed">
+                            <?php esc_html_e('Approved', 'meeting-room-booking'); ?>
+                        </span>
+
+                        <span class="mrb-badge mrb-badge-rejected">
+                            <?php esc_html_e('Rejected', 'meeting-room-booking'); ?>
+                        </span>
+
+                        <span class="mrb-badge mrb-badge-cancelled">
+                            <?php esc_html_e('Cancelled', 'meeting-room-booking'); ?>
+                        </span>
+                    </div>
+
+                    <div class="mrb-filter-bar">
+
+                        <div class="mrb-filter-group">
+                            <label for="mrb-calendar-status-filter">
+                                <?php esc_html_e('Status', 'meeting-room-booking'); ?>
+                            </label>
+
+                            <select id="mrb-calendar-status-filter" class="mrb-admin-select">
+                                <option value="">
+                                    <?php esc_html_e('All Statuses', 'meeting-room-booking'); ?>
+                                </option>
+
+                                <option value="pending">
+                                    <?php esc_html_e('Pending', 'meeting-room-booking'); ?>
+                                </option>
+
+                                <option value="approved">
+                                    <?php esc_html_e('Approved', 'meeting-room-booking'); ?>
+                                </option>
+
+                                <option value="rejected">
+                                    <?php esc_html_e('Rejected', 'meeting-room-booking'); ?>
+                                </option>
+
+                                <option value="cancelled">
+                                    <?php esc_html_e('Cancelled', 'meeting-room-booking'); ?>
+                                </option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                    <div class="mrb-calendar-loading" aria-hidden="true">
+                        <?php esc_html_e('Loading calendar...', 'meeting-room-booking'); ?>
+                    </div>
+
+                    <div id="mrb-calendar" class="mrb-admin-calendar"></div>
+
+                </div>
             </div>
 
-            <div id="mrb-calendar" style="background:#fff;padding:20px;border:1px solid #ccd0d4;border-radius:6px;"></div>
         </div>
+
         <?php
     }
 
@@ -71,9 +108,16 @@ class CalendarPage
      */
     public static function enqueueAssets(string $hook): void
     {
-        if (!isset($_GET['page']) || $_GET['page'] !== 'mrb-calendar') {
+        $page = isset($_GET['page'])
+            ? sanitize_key(wp_unslash($_GET['page']))
+            : '';
+
+        if ($page !== 'mrb-calendar') {
             return;
         }
+
+        wp_enqueue_style('mrb-admin-dashboard');
+        wp_enqueue_style('mrb-admin-calendar');
 
         wp_enqueue_script(
             'mrb-fullcalendar',
@@ -100,24 +144,6 @@ class CalendarPage
                 'editUrl' => admin_url('admin.php?page=mrb-reservations&action=edit&id='),
             ]
         );
-
-        wp_add_inline_style(
-            'wp-admin',
-            '
-            #mrb-calendar .fc-event {
-                cursor: pointer;
-            }
-
-            #mrb-calendar .fc-event-title {
-                font-weight: 600;
-            }
-
-            #mrb-calendar .fc-toolbar-title {
-                font-size: 22px;
-                font-weight: 600;
-            }
-            '
-        );
     }
 
     /**
@@ -126,9 +152,10 @@ class CalendarPage
     public static function getEvents(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_send_json_error([
-                'message' => 'Permission denied.',
-            ], 403);
+            wp_send_json_error(
+                ['message' => __('Permission denied.', 'meeting-room-booking')],
+                403
+            );
         }
 
         check_ajax_referer('mrb_calendar_nonce', 'nonce');
@@ -144,7 +171,7 @@ class CalendarPage
             : '';
 
         $status = isset($_GET['status'])
-            ? sanitize_key($_GET['status'])
+            ? sanitize_key(wp_unslash($_GET['status']))
             : '';
 
         $allowedStatuses = ['pending', 'approved', 'rejected', 'cancelled'];
@@ -157,10 +184,6 @@ class CalendarPage
             wp_send_json([]);
         }
 
-        /*
-         * FullCalendar sends ISO date strings.
-         * We only need Y-m-d for the database comparison.
-         */
         $startDate = substr($start, 0, 10);
         $endDate   = substr($end, 0, 10);
 
@@ -203,18 +226,37 @@ class CalendarPage
         $events = [];
 
         foreach ($rows as $row) {
-            $id = (int) $row['id'];
+            $id = isset($row['id']) ? (int) $row['id'] : 0;
 
-            $firstName = $row['first_name'] ?? '';
-            $lastName  = $row['last_name'] ?? '';
-            $fullName  = trim($firstName . ' ' . $lastName);
+            if ($id <= 0) {
+                continue;
+            }
 
-            $meetingTitle = $row['meeting_title'] ?? 'Untitled Meeting';
-            $reservationStatus = $row['status'] ?? 'pending';
+            $firstName = isset($row['first_name'])
+                ? sanitize_text_field($row['first_name'])
+                : '';
+
+            $lastName = isset($row['last_name'])
+                ? sanitize_text_field($row['last_name'])
+                : '';
+
+            $fullName = trim($firstName . ' ' . $lastName);
+
+            $meetingTitle = !empty($row['meeting_title'])
+                ? sanitize_text_field($row['meeting_title'])
+                : __('Untitled Meeting', 'meeting-room-booking');
+
+            $reservationStatus = !empty($row['status'])
+                ? sanitize_key($row['status'])
+                : 'pending';
 
             $roomLabel = !empty($row['room_id'])
-                ? 'Room #' . (int) $row['room_id']
-                : 'No room assigned';
+                ? sprintf(
+                    /* translators: %d: Room ID. */
+                    __('Room #%d', 'meeting-room-booking'),
+                    (int) $row['room_id']
+                )
+                : __('No room assigned', 'meeting-room-booking');
 
             $color = self::getStatusColor($reservationStatus);
 
@@ -224,11 +266,27 @@ class CalendarPage
                 $title .= ' - ' . $fullName;
             }
 
+            $meetingDate = isset($row['meeting_date'])
+                ? sanitize_text_field($row['meeting_date'])
+                : '';
+
+            $startTime = isset($row['start_time'])
+                ? sanitize_text_field($row['start_time'])
+                : '';
+
+            $endTime = isset($row['end_time'])
+                ? sanitize_text_field($row['end_time'])
+                : '';
+
+            if (!$meetingDate || !$startTime || !$endTime) {
+                continue;
+            }
+
             $events[] = [
                 'id'    => $id,
                 'title' => $title,
-                'start' => $row['meeting_date'] . 'T' . $row['start_time'],
-                'end'   => $row['meeting_date'] . 'T' . $row['end_time'],
+                'start' => $meetingDate . 'T' . $startTime,
+                'end'   => $meetingDate . 'T' . $endTime,
                 'url'   => admin_url('admin.php?page=mrb-reservations&action=edit&id=' . $id),
 
                 'backgroundColor' => $color,
@@ -238,9 +296,9 @@ class CalendarPage
                     'reservation_id' => $id,
                     'status'         => $reservationStatus,
                     'room'           => $roomLabel,
-                    'mobile'         => $row['mobile'] ?? '',
-                    'email'          => $row['email'] ?? '',
-                    'description'    => $row['description'] ?? '',
+                    'mobile'         => isset($row['mobile']) ? sanitize_text_field($row['mobile']) : '',
+                    'email'          => isset($row['email']) ? sanitize_email($row['email']) : '',
+                    'description'    => isset($row['description']) ? sanitize_textarea_field($row['description']) : '',
                 ],
             ];
         }
@@ -256,12 +314,12 @@ class CalendarPage
         $status = sanitize_key($status);
 
         $colors = [
-            'pending'   => '#f0ad4e',
-            'approved'  => '#46b450',
-            'rejected'  => '#dc3232',
-            'cancelled' => '#666666',
+            'pending'   => '#f59e0b',
+            'approved'  => '#16a34a',
+            'rejected'  => '#dc2626',
+            'cancelled' => '#6b7280',
         ];
 
-        return $colors[$status] ?? '#777777';
+        return $colors[$status] ?? '#6b7280';
     }
 }

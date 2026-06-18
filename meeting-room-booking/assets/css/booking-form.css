@@ -1,100 +1,241 @@
-﻿.mrb-booking-form {
-  max-width: 760px;
-  margin: 40px auto;
+﻿/* ==========================================================
+   MRB Unified Frontend Styles
+   Booking Form + Reservation Management
+   ========================================================== */
+
+.mrb-container,
+.mrb-booking-form {
+  max-width: 860px;
+  margin: 48px auto;
+  padding: 0 20px;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #1f2937;
 }
 
-.mrb-card {
-  background: #ffffff;
-  border: 1px solid #e5e5e5;
-  border-radius: 10px;
-  padding: 28px;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
+/* ==========================================================
+   Titles
+   ========================================================== */
+
+.mrb-title,
+.mrb-page-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: #111827;
 }
 
 .mrb-header {
   margin-bottom: 20px;
 }
 
-.mrb-title {
-  font-size: 24px;
-  margin: 0;
+/* ==========================================================
+   Cards / Panels
+   ========================================================== */
+
+.mrb-card,
+.mrb-panel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
+
+.mrb-panel-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+
+/* ==========================================================
+   Grid layout
+   ========================================================== */
 
 .mrb-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+/* ==========================================================
+   Form fields
+   ========================================================== */
+
+.mrb-field,
+.mrb-form-group {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 16px;
 }
 
-.mrb-field {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 14px;
-}
-
-.mrb-field label {
+.mrb-field label,
+.mrb-form-group label {
   font-weight: 600;
   margin-bottom: 6px;
-  color: #444;
+  font-size: 14px;
+  color: #374151;
 }
 
 .mrb-field input,
-.mrb-field textarea {
-  padding: 8px 10px;
-  border: 1px solid #d6d6d6;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.mrb-field textarea {
-  resize: vertical;
-}
-
-.mrb-submit-btn {
-  background: #2271b1;
-  color: #fff;
-  border: none;
-  padding: 12px 18px;
-  border-radius: 6px;
+.mrb-field textarea,
+.mrb-input,
+.mrb-textarea {
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
   font-size: 15px;
+  background: #fff;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.mrb-field input:focus,
+.mrb-field textarea:focus,
+.mrb-input:focus,
+.mrb-textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.mrb-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* ==========================================================
+   Buttons
+   ========================================================== */
+
+.mrb-btn,
+.mrb-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
+.mrb-btn:hover,
 .mrb-submit-btn:hover {
-  background: #1b5f96;
+  transform: translateY(-1px);
 }
 
-/* Notices */
+/* Primary */
 
-.mrb-notice {
-  max-width: 760px;
-  margin: 20px auto;
-  padding: 16px;
-  border-radius: 8px;
-  font-size: 14px;
+.mrb-btn-primary,
+.mrb-submit-btn {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
 }
 
-.mrb-notice-success {
-  background: #e6f6ea;
-  border: 1px solid #b7e3c1;
-  color: #1a6333;
+.mrb-btn-primary:hover,
+.mrb-submit-btn:hover {
+  background: #1d4ed8;
 }
 
-.mrb-notice-error {
-  background: #fde8e8;
-  border: 1px solid #f5b5b5;
-  color: #8b1d1d;
+/* Success */
+
+.mrb-btn-success {
+  background: #16a34a;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.25);
 }
+
+.mrb-btn-success:hover {
+  background: #15803d;
+}
+
+/* Danger */
+
+.mrb-btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(220, 38, 38, 0.25);
+}
+
+.mrb-btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* ==========================================================
+   Notices
+   ========================================================== */
+
+.mrb-notice,
+.mrb-user-notice {
+  max-width: 860px;
+  margin: 30px auto;
+  padding: 16px 18px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mrb-notice-success,
+.mrb-user-notice-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.mrb-notice-error,
+.mrb-user-notice-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+/* ==========================================================
+   Manage reservation link
+   ========================================================== */
 
 .mrb-manage-link {
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
   word-break: break-all;
+  font-size: 14px;
 }
 
 .mrb-manage-link-label {
-  margin: 8px 0 2px;
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+
+/* ==========================================================
+   Responsive
+   ========================================================== */
+
+@media (max-width: 640px) {
+  .mrb-container,
+  .mrb-booking-form {
+    padding: 0 16px;
+    margin: 36px auto;
+  }
+
+  .mrb-title,
+  .mrb-page-title {
+    font-size: 24px;
+  }
+
+  .mrb-card,
+  .mrb-panel {
+    padding: 22px;
+  }
+
+  .mrb-btn,
+  .mrb-submit-btn {
+    width: 100%;
+  }
 }
