@@ -52,7 +52,7 @@ class ReservationRepository
     public function updateStatus(int $id, string $status): bool
     {
         return $this->update($id, [
-            'status' => $status
+            'status' => $status,
         ]);
     }
 
@@ -62,7 +62,7 @@ class ReservationRepository
     public function cancel(int $id): bool
     {
         return $this->update($id, [
-            'status' => 'cancelled'
+            'status' => 'cancelled',
         ]);
     }
 
@@ -108,7 +108,6 @@ class ReservationRepository
         $params = [];
 
         if (!empty($args['search'])) {
-
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
 
             $where .= " AND (
@@ -123,16 +122,12 @@ class ReservationRepository
         }
 
         if (!empty($args['date'])) {
-
             $where .= " AND meeting_date = %s";
-
             $params[] = $args['date'];
         }
 
         if (!empty($args['status'])) {
-
             $where .= " AND status = %s";
-
             $params[] = $args['status'];
         }
 
@@ -150,11 +145,13 @@ class ReservationRepository
 
         $prepared = $this->wpdb->prepare($sql, ...$params);
 
-        return $this->wpdb->get_results($prepared, ARRAY_A);
+        $results = $this->wpdb->get_results($prepared, ARRAY_A);
+
+        return is_array($results) ? $results : [];
     }
 
     /**
-     * Count reservations (for pagination)
+     * Count reservations for pagination
      */
     public function getTotalCount(array $args = []): int
     {
@@ -163,7 +160,6 @@ class ReservationRepository
         $params = [];
 
         if (!empty($args['search'])) {
-
             $search = '%' . $this->wpdb->esc_like($args['search']) . '%';
 
             $where .= " AND (
@@ -178,16 +174,12 @@ class ReservationRepository
         }
 
         if (!empty($args['date'])) {
-
             $where .= " AND meeting_date = %s";
-
             $params[] = $args['date'];
         }
 
         if (!empty($args['status'])) {
-
             $where .= " AND status = %s";
-
             $params[] = $args['status'];
         }
 
@@ -225,7 +217,51 @@ class ReservationRepository
             ARRAY_A
         );
 
-        return $results ?: [];
+        return is_array($results) ? $results : [];
+    }
+
+    /**
+     * Get booked times for one date.
+     */
+    public function getBookedTimesByDate(string $date): array
+    {
+        $results = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                "SELECT meeting_date, start_time, end_time, status
+                 FROM {$this->table}
+                 WHERE meeting_date = %s
+                 AND status = 'approved'
+                 ORDER BY start_time ASC",
+                $date
+            ),
+            ARRAY_A
+        );
+
+        return is_array($results) ? $results : [];
+    }
+
+    /**
+     * Get booked times between two dates.
+     *
+     * Used by the frontend popup calendar.
+     * Current frontend shows selected day + 6 days after.
+     */
+    public function getBookedTimesBetweenDates(string $startDate, string $endDate): array
+    {
+        $results = $this->wpdb->get_results(
+            $this->wpdb->prepare(
+                "SELECT meeting_date, start_time, end_time, status
+                 FROM {$this->table}
+                 WHERE meeting_date BETWEEN %s AND %s
+                 AND status = 'approved'
+                 ORDER BY meeting_date ASC, start_time ASC",
+                $startDate,
+                $endDate
+            ),
+            ARRAY_A
+        );
+
+        return is_array($results) ? $results : [];
     }
 
     /**
@@ -236,7 +272,6 @@ class ReservationRepository
         string $startTime,
         string $endTime
     ): array {
-
         $sql = "
             SELECT *
             FROM {$this->table}
@@ -258,7 +293,7 @@ class ReservationRepository
             ARRAY_A
         );
 
-        return $results ?: [];
+        return is_array($results) ? $results : [];
     }
 
     /**
@@ -270,7 +305,6 @@ class ReservationRepository
         string $endTime,
         int $excludeId = 0
     ): int {
-
         $sql = "
             SELECT COUNT(*)
             FROM {$this->table}
@@ -312,7 +346,6 @@ class ReservationRepository
         string $startTime,
         string $endTime
     ): ?int {
-
         global $wpdb;
 
         $roomsTable = $wpdb->prefix . 'mrb_rooms';

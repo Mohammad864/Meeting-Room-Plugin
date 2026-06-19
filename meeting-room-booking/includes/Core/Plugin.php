@@ -41,6 +41,10 @@ class Plugin
         add_action('admin_enqueue_scripts', [CalendarPage::class, 'enqueueAssets']);
         add_action('wp_ajax_mrb_calendar_events', [CalendarPage::class, 'getEvents']);
 
+        add_action('wp_ajax_mrb_get_booked_times_range', [BookingFormShortcode::class, 'getBookedTimesRange']);
+add_action('wp_ajax_nopriv_mrb_get_booked_times_range', [BookingFormShortcode::class, 'getBookedTimesRange']);
+
+
         /*
         |--------------------------------------------------------------------------
         | Booking form submission
