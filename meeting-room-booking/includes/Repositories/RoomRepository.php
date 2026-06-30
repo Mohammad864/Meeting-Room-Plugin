@@ -1,6 +1,6 @@
 <?php
 
-namespace MRB\Database;
+namespace MRB\Repositories;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -8,22 +8,23 @@ if (!defined('ABSPATH')) {
 
 class RoomRepository
 {
+    private $wpdb;
     private string $table;
 
     public function __construct()
     {
         global $wpdb;
+
+        $this->wpdb  = $wpdb;
         $this->table = $wpdb->prefix . 'mrb_rooms';
     }
 
     public function all(): array
     {
-        global $wpdb;
-
-        return $wpdb->get_results(
+        return $this->wpdb->get_results(
             "SELECT * FROM {$this->table} ORDER BY id ASC",
             ARRAY_A
-        );
+        ) ?: [];
     }
 
     public function findNameById(?int $roomId): string
@@ -32,10 +33,8 @@ class RoomRepository
             return '-';
         }
 
-        global $wpdb;
-
-        $name = $wpdb->get_var(
-            $wpdb->prepare(
+        $name = $this->wpdb->get_var(
+            $this->wpdb->prepare(
                 "SELECT name FROM {$this->table} WHERE id = %d",
                 $roomId
             )

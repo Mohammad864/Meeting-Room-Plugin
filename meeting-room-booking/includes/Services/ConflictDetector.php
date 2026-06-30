@@ -2,34 +2,43 @@
 
 namespace MRB\Services;
 
-use MRB\Database\ReservationRepository;
+use MRB\Contracts\ReservationRepositoryInterface;
 
-if (!defined('ABSPATH')) {
-    exit;
+if (!defined("ABSPATH")) {
+    exit();
 }
 
+/**
+ * Checks whether a specific room has a scheduling conflict.
+ *
+ * Used by RoomAllocator to find a free room for a requested time slot.
+ */
 class ConflictDetector
 {
-    private ReservationRepository $reservations;
+    private ReservationRepositoryInterface $repository;
 
-    public function __construct(?ReservationRepository $reservations = null)
+    public function __construct(ReservationRepositoryInterface $repository)
     {
-        $this->reservations = $reservations ?: new ReservationRepository();
+        $this->repository = $repository;
     }
 
+    /**
+     * Return true if $roomId already has an approved reservation that overlaps
+     * the requested [startTime, endTime) window on $date.
+     */
     public function hasConflict(
         int $roomId,
         string $date,
         string $startTime,
         string $endTime,
-        ?int $excludeReservationId = null
+        ?int $excludeReservationId = null,
     ): bool {
-        return $this->reservations->hasConflict(
+        return $this->repository->countOverlappingApprovedForRoom(
             $roomId,
             $date,
             $startTime,
             $endTime,
-            $excludeReservationId
-        );
+            $excludeReservationId ?? 0,
+        ) > 0;
     }
 }

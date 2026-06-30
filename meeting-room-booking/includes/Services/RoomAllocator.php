@@ -2,43 +2,52 @@
 
 namespace MRB\Services;
 
-use MRB\Database\RoomRepository;
+use MRB\Repositories\RoomRepository;
 
-if (!defined('ABSPATH')) {
-    exit;
+if (!defined("ABSPATH")) {
+    exit();
 }
 
+/**
+ * Allocates the first available room for a requested time slot.
+ *
+ * Iterates over all rooms and uses ConflictDetector to skip rooms that already
+ * have an approved overlapping reservation.
+ */
 class RoomAllocator
 {
     private RoomRepository $rooms;
     private ConflictDetector $conflictDetector;
 
     public function __construct(
-        ?RoomRepository $rooms = null,
-        ?ConflictDetector $conflictDetector = null
+        RoomRepository $rooms,
+        ConflictDetector $conflictDetector,
     ) {
-        $this->rooms = $rooms ?: new RoomRepository();
-        $this->conflictDetector = $conflictDetector ?: new ConflictDetector();
+        $this->rooms = $rooms;
+        $this->conflictDetector = $conflictDetector;
     }
 
+    /**
+     * Return the ID of the first available room, or null if none is free.
+     */
     public function allocate(
         string $date,
         string $startTime,
         string $endTime,
-        ?int $excludeReservationId = null
+        ?int $excludeReservationId = null,
     ): ?int {
-        $rooms = $this->rooms->all();
+        foreach ($this->rooms->all() as $room) {
+            $roomId = (int) $room["id"];
 
-        foreach ($rooms as $room) {
-            $roomId = (int) $room['id'];
-
-            if (!$this->conflictDetector->hasConflict(
-                $roomId,
-                $date,
-                $startTime,
-                $endTime,
-                $excludeReservationId
-            )) {
+            if (
+                !$this->conflictDetector->hasConflict(
+                    $roomId,
+                    $date,
+                    $startTime,
+                    $endTime,
+                    $excludeReservationId,
+                )
+            ) {
                 return $roomId;
             }
         }

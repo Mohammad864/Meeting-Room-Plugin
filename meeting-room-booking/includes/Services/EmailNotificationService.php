@@ -2,11 +2,13 @@
 
 namespace MRB\Services;
 
-if (!defined('ABSPATH')) {
-    exit;
+use MRB\Contracts\NotificationServiceInterface;
+
+if (!defined("ABSPATH")) {
+    exit();
 }
 
-class EmailNotificationService
+class EmailNotificationService implements NotificationServiceInterface
 {
     /**
      * Send notification after a new reservation is created.
@@ -56,21 +58,30 @@ class EmailNotificationService
         }
 
         $subject = sprintf(
-            __('Your reservation request has been received - %s', 'meeting-room-booking'),
-            get_bloginfo('name')
+            __(
+                "Your reservation request has been received - %s",
+                "meeting-room-booking",
+            ),
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Request Received', 'meeting-room-booking'),
+            __("Reservation Request Received", "meeting-room-booking"),
             sprintf(
-                __('Hello %s,', 'meeting-room-booking'),
-                esc_html($this->getReservationName($reservation))
+                __("Hello %s,", "meeting-room-booking"),
+                esc_html($this->getReservationName($reservation)),
             ),
             [
-                __('Thank you. Your meeting room reservation request has been received.', 'meeting-room-booking'),
-                __('We will notify you once the reservation status changes.', 'meeting-room-booking'),
+                __(
+                    "Thank you. Your meeting room reservation request has been received.",
+                    "meeting-room-booking",
+                ),
+                __(
+                    "We will notify you once the reservation status changes.",
+                    "meeting-room-booking",
+                ),
             ],
-            $reservation
+            $reservation,
         );
 
         $this->sendEmail($email, $subject, $message);
@@ -88,18 +99,24 @@ class EmailNotificationService
         }
 
         $subject = sprintf(
-            __('New meeting room reservation - %s', 'meeting-room-booking'),
-            get_bloginfo('name')
+            __("New meeting room reservation - %s", "meeting-room-booking"),
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('New Reservation Created', 'meeting-room-booking'),
-            __('A new meeting room reservation has been submitted.', 'meeting-room-booking'),
+            __("New Reservation Created", "meeting-room-booking"),
+            __(
+                "A new meeting room reservation has been submitted.",
+                "meeting-room-booking",
+            ),
             [
-                __('Please review the reservation details below.', 'meeting-room-booking'),
+                __(
+                    "Please review the reservation details below.",
+                    "meeting-room-booking",
+                ),
             ],
             $reservation,
-            true
+            true,
         );
 
         $this->sendEmail($adminEmail, $subject, $message);
@@ -117,21 +134,30 @@ class EmailNotificationService
         }
 
         $subject = sprintf(
-            __('Your reservation has been updated - %s', 'meeting-room-booking'),
-            get_bloginfo('name')
+            __(
+                "Your reservation has been updated - %s",
+                "meeting-room-booking",
+            ),
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Updated', 'meeting-room-booking'),
+            __("Reservation Updated", "meeting-room-booking"),
             sprintf(
-                __('Hello %s,', 'meeting-room-booking'),
-                esc_html($this->getReservationName($reservation))
+                __("Hello %s,", "meeting-room-booking"),
+                esc_html($this->getReservationName($reservation)),
             ),
             [
-                __('Your meeting room reservation has been updated successfully.', 'meeting-room-booking'),
-                __('The updated reservation details are shown below.', 'meeting-room-booking'),
+                __(
+                    "Your meeting room reservation has been updated successfully.",
+                    "meeting-room-booking",
+                ),
+                __(
+                    "The updated reservation details are shown below.",
+                    "meeting-room-booking",
+                ),
             ],
-            $reservation
+            $reservation,
         );
 
         $this->sendEmail($email, $subject, $message);
@@ -149,18 +175,24 @@ class EmailNotificationService
         }
 
         $subject = sprintf(
-            __('Reservation updated - %s', 'meeting-room-booking'),
-            get_bloginfo('name')
+            __("Reservation updated - %s", "meeting-room-booking"),
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Updated', 'meeting-room-booking'),
-            __('A meeting room reservation has been updated.', 'meeting-room-booking'),
+            __("Reservation Updated", "meeting-room-booking"),
+            __(
+                "A meeting room reservation has been updated.",
+                "meeting-room-booking",
+            ),
             [
-                __('The updated reservation details are shown below.', 'meeting-room-booking'),
+                __(
+                    "The updated reservation details are shown below.",
+                    "meeting-room-booking",
+                ),
             ],
             $reservation,
-            true
+            true,
         );
 
         $this->sendEmail($adminEmail, $subject, $message);
@@ -178,20 +210,26 @@ class EmailNotificationService
         }
 
         $subject = sprintf(
-            __('Your reservation has been cancelled - %s', 'meeting-room-booking'),
-            get_bloginfo('name')
+            __(
+                "Your reservation has been cancelled - %s",
+                "meeting-room-booking",
+            ),
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Cancelled', 'meeting-room-booking'),
+            __("Reservation Cancelled", "meeting-room-booking"),
             sprintf(
-                __('Hello %s,', 'meeting-room-booking'),
-                esc_html($this->getReservationName($reservation))
+                __("Hello %s,", "meeting-room-booking"),
+                esc_html($this->getReservationName($reservation)),
             ),
             [
-                __('Your meeting room reservation has been cancelled.', 'meeting-room-booking'),
+                __(
+                    "Your meeting room reservation has been cancelled.",
+                    "meeting-room-booking",
+                ),
             ],
-            $reservation
+            $reservation,
         );
 
         $this->sendEmail($email, $subject, $message);
@@ -200,8 +238,9 @@ class EmailNotificationService
     /**
      * Admin email: reservation cancelled.
      */
-    private function sendAdminReservationCancelledEmail(array $reservation): void
-    {
+    private function sendAdminReservationCancelledEmail(
+        array $reservation,
+    ): void {
         $adminEmail = $this->getAdminNotificationEmail();
 
         if (!$adminEmail) {
@@ -209,18 +248,24 @@ class EmailNotificationService
         }
 
         $subject = sprintf(
-            __('Reservation cancelled - %s', 'meeting-room-booking'),
-            get_bloginfo('name')
+            __("Reservation cancelled - %s", "meeting-room-booking"),
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Cancelled', 'meeting-room-booking'),
-            __('A meeting room reservation has been cancelled.', 'meeting-room-booking'),
+            __("Reservation Cancelled", "meeting-room-booking"),
+            __(
+                "A meeting room reservation has been cancelled.",
+                "meeting-room-booking",
+            ),
             [
-                __('The cancelled reservation details are shown below.', 'meeting-room-booking'),
+                __(
+                    "The cancelled reservation details are shown below.",
+                    "meeting-room-booking",
+                ),
             ],
             $reservation,
-            true
+            true,
         );
 
         $this->sendEmail($adminEmail, $subject, $message);
@@ -229,8 +274,9 @@ class EmailNotificationService
     /**
      * User email: reservation status changed.
      */
-    private function sendUserReservationStatusChangedEmail(array $reservation): void
-    {
+    private function sendUserReservationStatusChangedEmail(
+        array $reservation,
+    ): void {
         $email = $this->getReservationEmail($reservation);
 
         if (!$email) {
@@ -240,24 +286,30 @@ class EmailNotificationService
         $status = $this->getReservationStatus($reservation);
 
         $subject = sprintf(
-            __('Your reservation status is now %s - %s', 'meeting-room-booking'),
+            __(
+                "Your reservation status is now %s - %s",
+                "meeting-room-booking",
+            ),
             ucfirst($status),
-            get_bloginfo('name')
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Status Updated', 'meeting-room-booking'),
+            __("Reservation Status Updated", "meeting-room-booking"),
             sprintf(
-                __('Hello %s,', 'meeting-room-booking'),
-                esc_html($this->getReservationName($reservation))
+                __("Hello %s,", "meeting-room-booking"),
+                esc_html($this->getReservationName($reservation)),
             ),
             [
                 sprintf(
-                    __('Your reservation status has been changed to: %s', 'meeting-room-booking'),
-                    '<strong>' . esc_html(ucfirst($status)) . '</strong>'
+                    __(
+                        "Your reservation status has been changed to: %s",
+                        "meeting-room-booking",
+                    ),
+                    "<strong>" . esc_html(ucfirst($status)) . "</strong>",
                 ),
             ],
-            $reservation
+            $reservation,
         );
 
         $this->sendEmail($email, $subject, $message);
@@ -266,8 +318,9 @@ class EmailNotificationService
     /**
      * Admin email: reservation status changed.
      */
-    private function sendAdminReservationStatusChangedEmail(array $reservation): void
-    {
+    private function sendAdminReservationStatusChangedEmail(
+        array $reservation,
+    ): void {
         $adminEmail = $this->getAdminNotificationEmail();
 
         if (!$adminEmail) {
@@ -277,22 +330,28 @@ class EmailNotificationService
         $status = $this->getReservationStatus($reservation);
 
         $subject = sprintf(
-            __('Reservation status changed to %s - %s', 'meeting-room-booking'),
+            __("Reservation status changed to %s - %s", "meeting-room-booking"),
             ucfirst($status),
-            get_bloginfo('name')
+            get_bloginfo("name"),
         );
 
         $message = $this->buildEmailTemplate(
-            __('Reservation Status Changed', 'meeting-room-booking'),
+            __("Reservation Status Changed", "meeting-room-booking"),
             sprintf(
-                __('A reservation status has been changed to: %s', 'meeting-room-booking'),
-                '<strong>' . esc_html(ucfirst($status)) . '</strong>'
+                __(
+                    "A reservation status has been changed to: %s",
+                    "meeting-room-booking",
+                ),
+                "<strong>" . esc_html(ucfirst($status)) . "</strong>",
             ),
             [
-                __('The reservation details are shown below.', 'meeting-room-booking'),
+                __(
+                    "The reservation details are shown below.",
+                    "meeting-room-booking",
+                ),
             ],
             $reservation,
-            true
+            true,
         );
 
         $this->sendEmail($adminEmail, $subject, $message);
@@ -306,20 +365,26 @@ class EmailNotificationService
         string $intro,
         array $paragraphs,
         array $reservation,
-        bool $includeAdminLink = false
+        bool $includeAdminLink = false,
     ): string {
-        $siteName = get_bloginfo('name');
+        $siteName = get_bloginfo("name");
 
         $detailsRows = $this->buildReservationDetailsRows($reservation);
 
-        $adminLinkHtml = '';
+        $adminLinkHtml = "";
 
-        if ($includeAdminLink && !empty($reservation['id'])) {
-            $adminUrl = admin_url('admin.php?page=mrb-reservations&action=edit&id=' . absint($reservation['id']));
+        if ($includeAdminLink && !empty($reservation["id"])) {
+            $adminUrl = admin_url(
+                "admin.php?page=mrb-reservations&action=edit&id=" .
+                    absint($reservation["id"]),
+            );
 
-            $adminLinkHtml = '
+            $adminLinkHtml =
+                '
                 <p style="margin-top:24px;">
-                    <a href="' . esc_url($adminUrl) . '" style="
+                    <a href="' .
+                esc_url($adminUrl) .
+                '" style="
                         display:inline-block;
                         padding:11px 18px;
                         background:#2563eb;
@@ -328,16 +393,24 @@ class EmailNotificationService
                         border-radius:8px;
                         font-weight:600;
                     ">
-                        ' . esc_html__('View Reservation in Admin', 'meeting-room-booking') . '
+                        ' .
+                esc_html__(
+                    "View Reservation in Admin",
+                    "meeting-room-booking",
+                ) .
+                '
                     </a>
                 </p>
             ';
         }
 
-        $paragraphHtml = '';
+        $paragraphHtml = "";
 
         foreach ($paragraphs as $paragraph) {
-            $paragraphHtml .= '<p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.6;">' . wp_kses_post($paragraph) . '</p>';
+            $paragraphHtml .=
+                '<p style="margin:0 0 12px;color:#374151;font-size:15px;line-height:1.6;">' .
+                wp_kses_post($paragraph) .
+                "</p>";
         }
 
         return '
@@ -345,7 +418,9 @@ class EmailNotificationService
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>' . esc_html($title) . '</title>
+                <title>' .
+            esc_html($title) .
+            '</title>
             </head>
             <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
                 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:30px 12px;">
@@ -355,10 +430,14 @@ class EmailNotificationService
                                 <tr>
                                     <td style="padding:24px 28px;background:#2563eb;color:#ffffff;">
                                         <h1 style="margin:0;font-size:22px;line-height:1.3;">
-                                            ' . esc_html($title) . '
+                                            ' .
+            esc_html($title) .
+            '
                                         </h1>
                                         <p style="margin:6px 0 0;font-size:14px;opacity:.9;">
-                                            ' . esc_html($siteName) . '
+                                            ' .
+            esc_html($siteName) .
+            '
                                         </p>
                                     </td>
                                 </tr>
@@ -366,28 +445,43 @@ class EmailNotificationService
                                 <tr>
                                     <td style="padding:28px;">
                                         <p style="margin:0 0 14px;color:#111827;font-size:16px;line-height:1.6;">
-                                            ' . wp_kses_post($intro) . '
+                                            ' .
+            wp_kses_post($intro) .
+            '
                                         </p>
 
-                                        ' . $paragraphHtml . '
+                                        ' .
+            $paragraphHtml .
+            '
 
                                         <div style="margin-top:24px;">
                                             <h2 style="margin:0 0 14px;color:#111827;font-size:18px;">
-                                                ' . esc_html__('Reservation Details', 'meeting-room-booking') . '
+                                                ' .
+            esc_html__("Reservation Details", "meeting-room-booking") .
+            '
                                             </h2>
 
                                             <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
-                                                ' . $detailsRows . '
+                                                ' .
+            $detailsRows .
+            '
                                             </table>
                                         </div>
 
-                                        ' . $adminLinkHtml . '
+                                        ' .
+            $adminLinkHtml .
+            '
                                     </td>
                                 </tr>
 
                                 <tr>
                                     <td style="padding:18px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;color:#6b7280;font-size:13px;line-height:1.5;">
-                                        ' . esc_html__('This is an automated email. Please do not reply directly to this message.', 'meeting-room-booking') . '
+                                        ' .
+            esc_html__(
+                "This is an automated email. Please do not reply directly to this message.",
+                "meeting-room-booking",
+            ) .
+            '
                                     </td>
                                 </tr>
                             </table>
@@ -405,35 +499,56 @@ class EmailNotificationService
     private function buildReservationDetailsRows(array $reservation): string
     {
         $rows = [
-            __('Name', 'meeting-room-booking')          => $this->getReservationName($reservation),
-            __('Email', 'meeting-room-booking')         => $this->getReservationEmail($reservation),
-            __('Mobile', 'meeting-room-booking')        => $reservation['mobile'] ?? '',
-            __('Meeting Title', 'meeting-room-booking') => $reservation['meeting_title'] ?? '',
-            __('Room', 'meeting-room-booking')          => $this->getRoomLabel($reservation),
-            __('Date', 'meeting-room-booking')          => $reservation['meeting_date'] ?? '',
-            __('Start Time', 'meeting-room-booking')    => $reservation['start_time'] ?? '',
-            __('End Time', 'meeting-room-booking')      => $reservation['end_time'] ?? '',
-            __('Status', 'meeting-room-booking')        => ucfirst($this->getReservationStatus($reservation)),
-            __('Description', 'meeting-room-booking')   => $reservation['description'] ?? '',
+            __("Name", "meeting-room-booking") => $this->getReservationName(
+                $reservation,
+            ),
+            __("Email", "meeting-room-booking") => $this->getReservationEmail(
+                $reservation,
+            ),
+            __("Mobile", "meeting-room-booking") =>
+                $reservation["mobile"] ?? "",
+            __("Meeting Title", "meeting-room-booking") =>
+                $reservation["meeting_title"] ?? "",
+            __("Room", "meeting-room-booking") => $this->getRoomLabel(
+                $reservation,
+            ),
+            __("Date", "meeting-room-booking") =>
+                $reservation["meeting_date"] ?? "",
+            __("Start Time", "meeting-room-booking") =>
+                $reservation["start_time"] ?? "",
+            __("End Time", "meeting-room-booking") =>
+                $reservation["end_time"] ?? "",
+            __("Status", "meeting-room-booking") => ucfirst(
+                $this->getReservationStatus($reservation),
+            ),
+            __("Description", "meeting-room-booking") =>
+                $reservation["description"] ?? "",
         ];
 
-        $html = '';
+        $html = "";
         $index = 0;
 
         foreach ($rows as $label => $value) {
-            if ($value === '' || $value === null) {
+            if ($value === "" || $value === null) {
                 continue;
             }
 
-            $background = $index % 2 === 0 ? '#ffffff' : '#f9fafb';
+            $background = $index % 2 === 0 ? "#ffffff" : "#f9fafb";
 
-            $html .= '
-                <tr style="background:' . esc_attr($background) . ';">
+            $html .=
+                '
+                <tr style="background:' .
+                esc_attr($background) .
+                ';">
                     <td style="padding:12px 14px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:14px;width:34%;font-weight:600;">
-                        ' . esc_html($label) . '
+                        ' .
+                esc_html($label) .
+                '
                     </td>
                     <td style="padding:12px 14px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:14px;">
-                        ' . nl2br(esc_html((string) $value)) . '
+                        ' .
+                nl2br(esc_html((string) $value)) .
+                '
                     </td>
                 </tr>
             ';
@@ -447,11 +562,18 @@ class EmailNotificationService
     /**
      * Actually send email.
      */
-    private function sendEmail(string $to, string $subject, string $message): bool
-    {
+    private function sendEmail(
+        string $to,
+        string $subject,
+        string $message,
+    ): bool {
         $headers = [
-            'Content-Type: text/html; charset=UTF-8',
-            'From: ' . get_bloginfo('name') . ' <' . $this->getFromEmail() . '>',
+            "Content-Type: text/html; charset=UTF-8",
+            "From: " .
+            get_bloginfo("name") .
+            " <" .
+            $this->getFromEmail() .
+            ">",
         ];
 
         return wp_mail($to, $subject, $message, $headers);
@@ -462,13 +584,13 @@ class EmailNotificationService
      */
     private function getAdminNotificationEmail(): string
     {
-        $email = get_option('mrb_admin_notification_email');
+        $email = get_option("mrb_admin_notification_email");
 
         if (!$email) {
-            $email = get_option('admin_email');
+            $email = get_option("admin_email");
         }
 
-        return is_email($email) ? $email : '';
+        return is_email($email) ? $email : "";
     }
 
     /**
@@ -476,18 +598,18 @@ class EmailNotificationService
      */
     private function getFromEmail(): string
     {
-        $email = get_option('mrb_from_email');
+        $email = get_option("mrb_from_email");
 
         if (!$email || !is_email($email)) {
             $domain = wp_parse_url(home_url(), PHP_URL_HOST);
 
             if (!$domain) {
-                return get_option('admin_email');
+                return get_option("admin_email");
             }
 
-            $domain = preg_replace('/^www\./', '', $domain);
+            $domain = preg_replace("/^www\./", "", $domain);
 
-            $email = 'wordpress@' . $domain;
+            $email = "wordpress@" . $domain;
         }
 
         return sanitize_email($email);
@@ -498,12 +620,12 @@ class EmailNotificationService
      */
     private function getReservationName(array $reservation): string
     {
-        $firstName = $reservation['first_name'] ?? '';
-        $lastName  = $reservation['last_name'] ?? '';
+        $firstName = $reservation["first_name"] ?? "";
+        $lastName = $reservation["last_name"] ?? "";
 
-        $name = trim($firstName . ' ' . $lastName);
+        $name = trim($firstName . " " . $lastName);
 
-        return $name ?: __('Guest', 'meeting-room-booking');
+        return $name ?: __("Guest", "meeting-room-booking");
     }
 
     /**
@@ -511,9 +633,9 @@ class EmailNotificationService
      */
     private function getReservationEmail(array $reservation): string
     {
-        $email = $reservation['email'] ?? '';
+        $email = $reservation["email"] ?? "";
 
-        return is_email($email) ? sanitize_email($email) : '';
+        return is_email($email) ? sanitize_email($email) : "";
     }
 
     /**
@@ -521,9 +643,9 @@ class EmailNotificationService
      */
     private function getReservationStatus(array $reservation): string
     {
-        return !empty($reservation['status'])
-            ? sanitize_key($reservation['status'])
-            : 'pending';
+        return !empty($reservation["status"])
+            ? sanitize_key($reservation["status"])
+            : "pending";
     }
 
     /**
@@ -531,21 +653,21 @@ class EmailNotificationService
      */
     private function getRoomLabel(array $reservation): string
     {
-        if (!empty($reservation['room_name'])) {
-            return sanitize_text_field($reservation['room_name']);
+        if (!empty($reservation["room_name"])) {
+            return sanitize_text_field($reservation["room_name"]);
         }
 
-        if (!empty($reservation['room'])) {
-            return sanitize_text_field($reservation['room']);
+        if (!empty($reservation["room"])) {
+            return sanitize_text_field($reservation["room"]);
         }
 
-        if (!empty($reservation['room_id'])) {
+        if (!empty($reservation["room_id"])) {
             return sprintf(
-                __('Room #%d', 'meeting-room-booking'),
-                absint($reservation['room_id'])
+                __("Room #%d", "meeting-room-booking"),
+                absint($reservation["room_id"]),
             );
         }
 
-        return __('No room assigned', 'meeting-room-booking');
+        return __("No room assigned", "meeting-room-booking");
     }
 }
