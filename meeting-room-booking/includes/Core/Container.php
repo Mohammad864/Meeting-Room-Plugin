@@ -65,6 +65,16 @@ final class Container
         return $this->instances[$abstract];
     }
 
+
+    /**
+     * Alias for make() — resolves a binding by its abstract class/interface name.
+     *
+     * @throws \RuntimeException When no binding exists for $abstract.
+     */
+    public function get(string $abstract): object
+    {
+        return $this->make($abstract);
+    }
     public static function build(): self
     {
         $c = new self();

@@ -1,103 +1,94 @@
 <?php
+/**
+ * Admin settings controller.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Controllers\Admin;
 
 use MRB\Core\Activator;
 use MRB\Support\View;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
  * Handles the "Settings" admin submenu page.
  */
-class SettingsController
-{
-    /**
-     * Register the submenu page with WordPress.
-     *
-     * Call this from Plugin::registerAdminPages() or a container boot method.
-     */
-    public function register(): void
-    {
-        add_submenu_page(
-            'mrb-reservations',
-            __('Meeting Room Settings', 'meeting-room-booking'),
-            __('Settings', 'meeting-room-booking'),
-            'manage_options',
-            'mrb-settings',
-            [$this, 'show']
-        );
-    }
+class SettingsController {
 
-    /**
-     * WordPress menu page callback.
-     */
-    public function show(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'meeting-room-booking'));
-        }
+	/** Register the submenu page with WordPress. */
+	public function register(): void {
+		add_submenu_page(
+			'mrb-reservations',
+			__( 'Meeting Room Settings', 'meeting-room-booking' ),
+			__( 'Settings',             'meeting-room-booking' ),
+			'manage_options',
+			'mrb-settings',
+			[ $this, 'show' ]
+		);
+	}
 
-        $numberOfRooms = absint(get_option('mrb_number_of_rooms', 3));
+	/** WordPress menu page callback. */
+	public function show(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'meeting-room-booking' ) );
+		}
 
-        View::output('admin/settings', ['numberOfRooms' => $numberOfRooms]);
-    }
+		$number_of_rooms = absint( get_option( 'mrb_number_of_rooms', 3 ) );
 
-    /**
-     * Handle settings form submission.
-     *
-     * Hook: admin_post_mrb_save_settings
-     */
-    public function handleSave(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'meeting-room-booking'));
-        }
+		View::output( 'admin/settings', [ 'numberOfRooms' => $number_of_rooms ] );
+	}
 
-        if (
-            !isset($_POST['mrb_settings_nonce']) ||
-            !wp_verify_nonce($_POST['mrb_settings_nonce'], 'mrb_save_settings')
-        ) {
-            wp_die(esc_html__('Security check failed.', 'meeting-room-booking'));
-        }
+	/**
+	 * Handle settings form submission.
+	 *
+	 * Hook: admin_post_mrb_save_settings
+	 */
+	public function handleSave(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to perform this action.', 'meeting-room-booking' ) );
+		}
 
-        $oldCount = absint(get_option('mrb_number_of_rooms', 3));
-        $newCount = isset($_POST['mrb_number_of_rooms'])
-            ? max(1, absint($_POST['mrb_number_of_rooms']))
-            : 3;
+		// wp_unslash() before sanitize/verify — required by WPCS and defensively
+		// correct when running under environments with magic_quotes active.
+		$nonce = isset( $_POST['mrb_settings_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['mrb_settings_nonce'] ) )
+			: '';
 
-        update_option('mrb_number_of_rooms', $newCount);
+		if ( ! wp_verify_nonce( $nonce, 'mrb_save_settings' ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'meeting-room-booking' ) );
+		}
 
-        Activator::syncRoomsToConfiguredCount();
+		$old_count = absint( get_option( 'mrb_number_of_rooms', 3 ) );
+		$new_count = isset( $_POST['mrb_number_of_rooms'] )
+			? max( 1, absint( $_POST['mrb_number_of_rooms'] ) )
+			: 3;
 
-        $actualRoomCount = $this->getActualRoomCount();
+		update_option( 'mrb_number_of_rooms', $new_count );
+		Activator::syncRoomsToConfiguredCount();
 
-        $redirectUrl = add_query_arg(
-            [
-                'page'             => 'mrb-settings',
-                'settings-updated' => '1',
-            ],
-            admin_url('admin.php')
-        );
+		$actual_count = $this->getActualRoomCount();
 
-        if ($newCount < $oldCount && $actualRoomCount > $newCount) {
-            $redirectUrl = add_query_arg('rooms-warning', '1', $redirectUrl);
-        }
+		$redirect_url = add_query_arg(
+			[ 'page' => 'mrb-settings', 'settings-updated' => '1' ],
+			admin_url( 'admin.php' )
+		);
 
-        wp_safe_redirect($redirectUrl);
-        exit;
-    }
+		if ( $new_count < $old_count && $actual_count > $new_count ) {
+			$redirect_url = add_query_arg( 'rooms-warning', '1', $redirect_url );
+		}
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+		wp_safe_redirect( $redirect_url );
+		exit;
+	}
 
-    private function getActualRoomCount(): int
-    {
-        global $wpdb;
+	// ── Private helpers ───────────────────────────────────────────────────────
 
-        $roomsTable = $wpdb->prefix . 'mrb_rooms';
-
-        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$roomsTable}");
-    }
+	private function getActualRoomCount(): int {
+		global $wpdb;
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}mrb_rooms" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
 }

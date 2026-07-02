@@ -1,95 +1,89 @@
 <?php
+/**
+ * Asset registration.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Core;
 
-if (!defined("ABSPATH")) {
-    exit();
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
- * Registers and conditionally enqueues plugin CSS and JavaScript assets.
+ * Registers plugin CSS and JS with WordPress so controllers can enqueue
+ * them on demand without re-specifying paths or versions.
  *
- * Scripts/styles are registered here so they can be enqueued on-demand
- * by individual controllers (e.g. BookingController enqueues mrb-booking-form).
+ * NOTE: mrb-admin-dashboard.css was removed because the file never existed
+ * in the plugin bundle. mrb-admin-calendar.css now has no dependency.
  */
-class Assets
-{
-    public function register(): void
-    {
-        add_action("wp_enqueue_scripts", [$this, "registerFrontendAssets"]);
-        add_action("admin_enqueue_scripts", [$this, "registerAdminAssets"]);
-    }
+class Assets {
 
-    public function registerFrontendAssets(): void
-    {
-        wp_register_style(
-            "mrb-booking-form",
-            MRB_PLUGIN_URL . "assets/css/booking-form.css",
-            [],
-            $this->version("assets/css/booking-form.css"),
-        );
+	public function register(): void {
+		add_action( 'wp_enqueue_scripts',    [ $this, 'registerFrontendAssets' ] );
+		add_action( 'admin_enqueue_scripts', [ $this, 'registerAdminAssets'    ] );
+	}
 
-        wp_register_style(
-            "mrb-manage-reservation",
-            MRB_PLUGIN_URL . "assets/css/mrb-manage-reservation.css",
-            [],
-            $this->version("assets/css/mrb-manage-reservation.css"),
-        );
+	/** Register front-end styles and scripts. */
+	public function registerFrontendAssets(): void {
+		wp_register_style(
+			'mrb-booking-form',
+			MRB_PLUGIN_URL . 'assets/css/booking-form.css',
+			[],
+			$this->version( 'assets/css/booking-form.css' )
+		);
 
-        // Booking-form interactive script.
-        // Depends on jQuery (already bundled with WordPress).
-        wp_register_script(
-            "mrb-booking-form",
-            MRB_PLUGIN_URL . "assets/js/booking-form.js",
-            ["jquery"],
-            $this->version("assets/js/booking-form.js"),
-            true,
-        );
+		wp_register_style(
+			'mrb-manage-reservation',
+			MRB_PLUGIN_URL . 'assets/css/mrb-manage-reservation.css',
+			[],
+			$this->version( 'assets/css/mrb-manage-reservation.css' )
+		);
 
-        // Inject the AJAX configuration object that booking-form.js reads as
-        // window.MRBBookingForm.ajaxUrl and window.MRBBookingForm.nonce.
-        // This is added once here so it is always present when the script loads.
-        wp_add_inline_script(
-            "mrb-booking-form",
-            "window.MRBBookingForm = " .
-                wp_json_encode([
-                    "ajaxUrl" => admin_url("admin-ajax.php"),
-                    "nonce" => wp_create_nonce("mrb_get_booked_times_range"),
-                ]) .
-                ";",
-            "before",
-        );
-    }
+		// booking-form.js depends on jQuery (bundled with WordPress).
+		wp_register_script(
+			'mrb-booking-form',
+			MRB_PLUGIN_URL . 'assets/js/booking-form.js',
+			[ 'jquery' ],
+			$this->version( 'assets/js/booking-form.js' ),
+			true
+		);
 
-    public function registerAdminAssets(): void
-    {
-        wp_register_style(
-            "mrb-admin-dashboard",
-            MRB_PLUGIN_URL . "assets/css/mrb-admin-dashboard.css",
-            [],
-            $this->version("assets/css/mrb-admin-dashboard.css"),
-        );
+		// Inject AJAX configuration: window.MRBBookingForm.ajaxUrl / .nonce
+		wp_add_inline_script(
+			'mrb-booking-form',
+			'window.MRBBookingForm = ' . wp_json_encode( [
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'mrb_get_booked_times_range' ),
+			] ) . ';',
+			'before'
+		);
+	}
 
-        wp_register_style(
-            "mrb-admin-calendar",
-            MRB_PLUGIN_URL . "assets/css/mrb-admin-calendar.css",
-            ["mrb-admin-dashboard"],
-            $this->version("assets/css/mrb-admin-calendar.css"),
-        );
-    }
+	/** Register admin-only styles. */
+	public function registerAdminAssets(): void {
+		wp_register_style(
+			'mrb-admin-calendar',
+			MRB_PLUGIN_URL . 'assets/css/mrb-admin-calendar.css',
+			[],
+			$this->version( 'assets/css/mrb-admin-calendar.css' )
+		);
+	}
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+	// ── Private helpers ───────────────────────────────────────────────────────
 
-    /**
-     * Return a cache-busting version string for an asset file.
-     *
-     * Uses the file modification time during development so browsers pick up
-     * CSS/JS changes immediately. Falls back to MRB_VERSION if the file is absent.
-     */
-    private function version(string $relativePath): string
-    {
-        $file = MRB_PLUGIN_DIR . ltrim($relativePath, "/");
-
-        return file_exists($file) ? (string) filemtime($file) : MRB_VERSION;
-    }
+	/**
+	 * Return a cache-busting version string for an asset file.
+	 *
+	 * Uses filemtime() in development so browsers pick up changes immediately.
+	 * Falls back to MRB_VERSION when the file is absent (e.g. production build).
+	 *
+	 * @param  string $relative_path Path relative to the plugin root.
+	 * @return string Version string.
+	 */
+	private function version( string $relative_path ): string {
+		$file = MRB_PLUGIN_DIR . ltrim( $relative_path, '/' );
+		return file_exists( $file ) ? (string) filemtime( $file ) : MRB_VERSION;
+	}
 }

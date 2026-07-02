@@ -1,144 +1,127 @@
 <?php
+/**
+ * Admin reservation action controller.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Controllers\Admin;
 
-use MRB\Enums\ReservationStatus;
 use MRB\Services\ReservationService;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
- * Handles admin POST actions for reservations.
- *
- * Hooks:
- *   admin_post_mrb_admin_update_reservation → handleUpdate()
- *   admin_post_mrb_change_status            → handleStatusChange()
- *
- * Email notifications are handled inside ReservationService — not here.
+ * Handles admin POST actions for reservations:
+ *   - mrb_admin_update_reservation  (edit form save)
+ *   - mrb_change_status             (quick approve / reject / pending)
  */
-class ReservationActionController
-{
-    private ReservationService $service;
+class ReservationActionController {
 
-    public function __construct(ReservationService $service)
-    {
-        $this->service = $service;
-    }
+	private ReservationService $service;
 
-    /**
-     * Handle admin reservation edit form submission.
-     *
-     * Hook: admin_post_mrb_admin_update_reservation
-     */
-    public function handleUpdate(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'meeting-room-booking'));
-        }
+	public function __construct( ReservationService $service ) {
+		$this->service = $service;
+	}
 
-        $id = isset($_POST['reservation_id']) ? absint($_POST['reservation_id']) : 0;
+	// ── Admin edit save ───────────────────────────────────────────────────────
 
-        if ($id <= 0) {
-            wp_die(esc_html__('Invalid reservation ID.', 'meeting-room-booking'));
-        }
+	/**
+	 * Handle the "Update Reservation" form submission from the edit page.
+	 *
+	 * Hook: admin_post_mrb_admin_update_reservation
+	 */
+	public function handleUpdate(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to perform this action.', 'meeting-room-booking' ) );
+		}
 
-        $nonce = isset($_POST['mrb_nonce'])
-            ? sanitize_text_field(wp_unslash($_POST['mrb_nonce']))
-            : '';
+		$id = isset( $_POST['reservation_id'] ) ? absint( $_POST['reservation_id'] ) : 0;
+		if ( $id <= 0 ) {
+			wp_die( esc_html__( 'Invalid reservation ID.', 'meeting-room-booking' ) );
+		}
 
-        if (!wp_verify_nonce($nonce, 'mrb_admin_edit_' . $id)) {
-            wp_die(esc_html__('Security check failed.', 'meeting-room-booking'));
-        }
+		$nonce = isset( $_POST['mrb_nonce'] )
+			? sanitize_text_field( wp_unslash( $_POST['mrb_nonce'] ) )
+			: '';
 
-        $redirectUrl = admin_url('admin.php?page=mrb-reservations&action=edit&id=' . $id);
-        $result      = $this->service->adminEdit($id, wp_unslash($_POST));
+		if ( ! wp_verify_nonce( $nonce, 'mrb_admin_edit_' . $id ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'meeting-room-booking' ) );
+		}
 
-        if (is_wp_error($result)) {
-            error_log('[MRB] Admin update failed: ' . $result->get_error_message());
+		$redirect_url = admin_url( 'admin.php?page=mrb-reservations&action=edit&id=' . $id );
 
-            wp_safe_redirect(add_query_arg([
-                'mrb_error'     => 'update_failed',
-                'mrb_error_msg' => rawurlencode($result->get_error_message()),
-            ], $redirectUrl));
-            exit;
-        }
+		$result = $this->service->adminEdit( $id, wp_unslash( $_POST ) );
 
-        if (!$result) {
-            wp_safe_redirect(add_query_arg('mrb_error', 'update_failed', $redirectUrl));
-            exit;
-        }
+		if ( is_wp_error( $result ) ) {
+			wp_safe_redirect( add_query_arg(
+				[
+					'mrb_error'     => 'update_failed',
+					'mrb_error_msg' => rawurlencode( $result->get_error_message() ),
+				],
+				$redirect_url
+			) );
+			exit;
+		}
 
-        wp_safe_redirect(add_query_arg('mrb_message', 'updated', $redirectUrl));
-        exit;
-    }
+		wp_safe_redirect( add_query_arg( 'mrb_message', 'updated', $redirect_url ) );
+		exit;
+	}
 
-    /**
-     * Handle quick status change (approve / reject / pending).
-     *
-     * Hook: admin_post_mrb_change_status
-     */
-    public function handleStatusChange(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to perform this action.', 'meeting-room-booking'));
-        }
+	// ── Quick status change ───────────────────────────────────────────────────
 
-        $id     = isset($_GET['id'])     ? absint($_GET['id'])           : 0;
-        $status = isset($_GET['status']) ? sanitize_key($_GET['status']) : '';
+	/**
+	 * Handle the quick "Approve / Reject / Pending" action links.
+	 *
+	 * These are GET requests protected by a nonce in the URL — identical to
+	 * the pattern used by WordPress core's post trash/restore actions.
+	 *
+	 * Hook: admin_post_mrb_change_status
+	 */
+	public function handleStatusChange(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to perform this action.', 'meeting-room-booking' ) );
+		}
 
-        if ($id <= 0) {
-            wp_die(esc_html__('Invalid reservation ID.', 'meeting-room-booking'));
-        }
+		$id     = isset( $_GET['id'] )     ? absint( $_GET['id'] )                       : 0;
+		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : '';
 
-        if (!ReservationStatus::isAdminSettable($status)) {
-            wp_die(esc_html__('Invalid reservation status.', 'meeting-room-booking'));
-        }
+		if ( $id <= 0 ) {
+			wp_die( esc_html__( 'Invalid reservation ID.', 'meeting-room-booking' ) );
+		}
 
-        if (
-            !isset($_GET['_wpnonce']) ||
-            !wp_verify_nonce(
-                sanitize_text_field(wp_unslash($_GET['_wpnonce'])),
-                'mrb_change_status_' . $id
-            )
-        ) {
-            wp_die(esc_html__('Security check failed.', 'meeting-room-booking'));
-        }
+		$nonce = isset( $_GET['_wpnonce'] )
+			? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) )
+			: '';
 
-        $redirectUrl = admin_url('admin.php?page=mrb-reservations');
-        $result      = $this->service->changeStatus($id, $status);
+		if ( ! wp_verify_nonce( $nonce, 'mrb_change_status_' . $id ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'meeting-room-booking' ) );
+		}
 
-        if (is_wp_error($result)) {
-            error_log('[MRB] Status change failed: ' . $result->get_error_message());
+		$redirect_url = admin_url( 'admin.php?page=mrb-reservations' );
 
-            wp_safe_redirect(add_query_arg([
-                'mrb_error'     => 'status_failed',
-                'mrb_error_msg' => rawurlencode($result->get_error_message()),
-            ], $redirectUrl));
-            exit;
-        }
+		$result = $this->service->changeStatus( $id, $status );
 
-        if (!is_array($result) || empty($result['success'])) {
-            $message = is_array($result) && !empty($result['message'])
-                ? $result['message']
-                : __('Failed to update reservation status.', 'meeting-room-booking');
+		if ( empty( $result['success'] ) ) {
+			wp_safe_redirect( add_query_arg(
+				[
+					'mrb_error'     => 'status_failed',
+					'mrb_error_msg' => rawurlencode( $result['message'] ?? __( 'Failed to update status.', 'meeting-room-booking' ) ),
+				],
+				$redirect_url
+			) );
+			exit;
+		}
 
-            error_log('[MRB] Status change failed: ' . $message);
-
-            wp_safe_redirect(add_query_arg([
-                'mrb_error'     => 'status_failed',
-                'mrb_error_msg' => rawurlencode($message),
-            ], $redirectUrl));
-            exit;
-        }
-
-        $message = $result['message'] ?? __('Reservation status updated successfully.', 'meeting-room-booking');
-
-        wp_safe_redirect(add_query_arg([
-            'mrb_message' => 'status_updated',
-            'mrb_msg'     => rawurlencode($message),
-        ], $redirectUrl));
-        exit;
-    }
+		wp_safe_redirect( add_query_arg(
+			[
+				'mrb_message' => 'status_updated',
+				'mrb_msg'     => rawurlencode( $result['message'] ?? __( 'Status updated.', 'meeting-room-booking' ) ),
+			],
+			$redirect_url
+		) );
+		exit;
+	}
 }

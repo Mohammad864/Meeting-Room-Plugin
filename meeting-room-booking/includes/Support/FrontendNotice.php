@@ -1,121 +1,78 @@
 <?php
+/**
+ * Front-end notice renderer.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Support;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
- * Renders frontend user-facing notices from query-string parameters.
+ * Renders a dismissible notice on front-end reservation pages based on
+ * URL query parameters (?updated=1, ?cancelled=1, ?error=<code>).
  *
- * Replaces the duplicated notice rendering that existed in both
- * Plugin::renderFrontendNotice() and ManageReservationHandler::renderFrontendNotice().
- *
- * Supports both standard $_GET and custom /reservation/{token}/ routes where
- * WordPress's rewrite layer processes the URL via template_redirect.
+ * Rendered once per request via a static flag to prevent duplication
+ * when both wp_body_open and wp_footer fire in the same request.
  */
-final class FrontendNotice
-{
-    private static bool $rendered = false;
+class FrontendNotice {
 
-    /**
-     * Read query-string parameters and print the appropriate notice.
-     *
-     * Safe to call from wp_body_open, wp_footer, or directly inside a template —
-     * the static $rendered flag prevents duplicate output.
-     */
-    public static function renderFromRequest(): void
-    {
-        if (is_admin() || self::$rendered) {
-            return;
-        }
+	/** Prevent rendering the same notice more than once per page load. */
+	private static bool $rendered = false;
 
-        $params    = self::resolveQueryParams();
-        $updated   = isset($params['updated'])   ? sanitize_text_field((string) $params['updated'])   : '';
-        $cancelled = isset($params['cancelled']) ? sanitize_text_field((string) $params['cancelled']) : '';
-        $error     = isset($params['error'])     ? sanitize_key((string) $params['error'])             : '';
+	/**
+	 * Register WordPress hooks.
+	 *
+	 * Called once by Plugin::boot(). Uses wp_body_open (preferred) and
+	 * wp_footer as a fallback for themes that do not call wp_body_open.
+	 */
+	public static function register(): void {
+		add_action( 'wp_body_open', [ self::class, 'render' ], 5 );
+		add_action( 'wp_footer',    [ self::class, 'render' ], 5 );
+	}
 
-        if ($updated !== '1' && $cancelled !== '1' && $error === '') {
-            return;
-        }
+	/**
+	 * Output the notice HTML when a relevant query param is present.
+	 *
+	 * Safe to call multiple times — renders only once per request.
+	 */
+	public static function render(): void {
+		if ( is_admin() || self::$rendered ) {
+			return;
+		}
 
-        self::$rendered = true;
+		$updated   = isset( $_GET['updated'] )   ? sanitize_key( wp_unslash( $_GET['updated'] ) )   : '';
+		$cancelled = isset( $_GET['cancelled'] ) ? sanitize_key( wp_unslash( $_GET['cancelled'] ) ) : '';
+		$error     = isset( $_GET['error'] )     ? sanitize_key( wp_unslash( $_GET['error'] ) )     : '';
 
-        self::printStyles();
+		if ( '1' !== $updated && '1' !== $cancelled && '' === $error ) {
+			return;
+		}
 
-        echo '<div class="mrb-user-notice-wrap">';
+		self::$rendered = true;
 
-        if ($updated === '1') {
-            self::success(__('Your reservation has been updated successfully.', 'meeting-room-booking'));
-        } elseif ($cancelled === '1') {
-            self::success(__('Your reservation has been cancelled successfully.', 'meeting-room-booking'));
-        } elseif ($error !== '') {
-            self::error(ErrorMessages::get($error));
-        }
+		?>
+		<div class="mrb-user-notice-wrap">
+			<?php if ( '1' === $updated ) : ?>
+				<div class="mrb-user-notice mrb-user-notice-success" role="alert">
+					<?php esc_html_e( 'Your reservation has been updated successfully.', 'meeting-room-booking' ); ?>
+				</div>
+			<?php elseif ( '1' === $cancelled ) : ?>
+				<div class="mrb-user-notice mrb-user-notice-success" role="alert">
+					<?php esc_html_e( 'Your reservation has been cancelled successfully.', 'meeting-room-booking' ); ?>
+				</div>
+			<?php elseif ( '' !== $error ) : ?>
+				<div class="mrb-user-notice mrb-user-notice-error" role="alert">
+					<?php echo esc_html( ErrorMessages::get( $error ) ); ?>
+				</div>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
 
-        echo '</div>';
-    }
-
-    public static function success(string $message): void
-    {
-        echo '<div class="mrb-user-notice mrb-user-notice-success">' . esc_html($message) . '</div>';
-    }
-
-    public static function error(string $message): void
-    {
-        echo '<div class="mrb-user-notice mrb-user-notice-error">' . esc_html($message) . '</div>';
-    }
-
-    // ── Private helpers ───────────────────────────────────────────────────────
-
-    /**
-     * Resolve query parameters.
-     *
-     * On the /reservation/{token}/ custom route WordPress processes the request
-     * via template_redirect. In this context $_GET is always available (PHP
-     * populates it from QUERY_STRING), but we add REQUEST_URI parsing as a
-     * belt-and-suspenders fallback for edge-case server configurations.
-     */
-    private static function resolveQueryParams(): array
-    {
-        if (!empty($_GET)) {
-            return (array) $_GET;
-        }
-
-        $queryString = '';
-
-        if (!empty($_SERVER['REQUEST_URI'])) {
-            $parsed = wp_parse_url(
-                sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])),
-                PHP_URL_QUERY
-            );
-
-            if (is_string($parsed)) {
-                $queryString = $parsed;
-            }
-        }
-
-        if ($queryString === '' && !empty($_SERVER['QUERY_STRING'])) {
-            $queryString = sanitize_text_field(wp_unslash($_SERVER['QUERY_STRING']));
-        }
-
-        if ($queryString === '') {
-            return [];
-        }
-
-        parse_str($queryString, $params);
-
-        return is_array($params) ? $params : [];
-    }
-
-    private static function printStyles(): void
-    {
-        echo '<style>
-            .mrb-user-notice-wrap{max-width:1100px;margin:20px auto;padding:0 16px;box-sizing:border-box;}
-            .mrb-user-notice{padding:14px 16px;margin:0 0 20px;border-radius:8px;font-size:15px;line-height:1.5;font-weight:500;box-sizing:border-box;}
-            .mrb-user-notice-success{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;}
-            .mrb-user-notice-error{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;}
-        </style>';
-    }
+	/** Private constructor — this class is not meant to be instantiated. */
+	private function __construct() {}
 }

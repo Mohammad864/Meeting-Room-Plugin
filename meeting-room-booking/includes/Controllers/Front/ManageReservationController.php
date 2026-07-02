@@ -1,56 +1,59 @@
 <?php
+/**
+ * Front-end manage-reservation page controller.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Controllers\Front;
 
-use MRB\Contracts\ReservationRepositoryInterface;
 use MRB\Enums\ReservationStatus;
+use MRB\Contracts\ReservationRepositoryInterface;
 use MRB\Support\View;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
- * Renders the public "Manage Your Reservation" page.
+ * Renders the /reservation/{token}/ front-end page.
  *
- * Called from Plugin::handleReservationRoute() when /reservation/{token}/ matches.
+ * Fetches the reservation by token (with room name via LEFT JOIN),
+ * determines whether the guest can still modify the booking,
+ * then delegates HTML output to the view template.
  */
-class ManageReservationController
-{
-    private ReservationRepositoryInterface $repository;
+class ManageReservationController {
 
-    public function __construct(ReservationRepositoryInterface $repository)
-    {
-        $this->repository = $repository;
-    }
+	private ReservationRepositoryInterface $repository;
 
-    /**
-     * Render the full reservation management page and exit.
-     */
-    public function show(string $token): void
-    {
-        $token       = sanitize_text_field($token);
-        $reservation = $this->repository->findByToken($token);
+	public function __construct( ReservationRepositoryInterface $repository ) {
+		$this->repository = $repository;
+	}
 
-        if (!$reservation) {
-            wp_die(esc_html__('Reservation not found.', 'meeting-room-booking'));
-        }
+	/**
+	 * Show the manage-reservation page for a given token.
+	 *
+	 * Called from Plugin::handleReservationRoute().
+	 *
+	 * @param string $token Guest edit token.
+	 */
+	public function show( string $token ): void {
+		wp_enqueue_style( 'mrb-manage-reservation' );
 
-        wp_enqueue_style('mrb-manage-reservation');
+		if ( '' === $token ) {
+			wp_die( esc_html__( 'Missing reservation token.', 'meeting-room-booking' ) );
+		}
 
-        $status    = (string) ($reservation['status'] ?? '');
-        $canManage = !ReservationStatus::isLocked($status);
+		$reservation = $this->repository->findByToken( $token );
 
-        get_header();
+		if ( ! $reservation ) {
+			wp_die( esc_html__( 'Reservation not found.', 'meeting-room-booking' ) );
+		}
 
-        View::output('front/manage-reservation', [
-            'token'       => $token,
-            'reservation' => $reservation,
-            'status'      => $status,
-            'canManage'   => $canManage,
-        ]);
+		$status     = isset( $reservation['status'] ) ? sanitize_key( $reservation['status'] ) : '';
+		$can_manage = ! ReservationStatus::isLocked( $status );
 
-        get_footer();
-        exit;
-    }
+		View::output( 'front/manage-reservation', compact( 'reservation', 'token', 'can_manage' ) );
+		exit;
+	}
 }

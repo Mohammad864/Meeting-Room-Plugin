@@ -1,39 +1,55 @@
 <?php
+/**
+ * Status badge renderer.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Support;
 
 use MRB\Enums\ReservationStatus;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
- * Renders a coloured status badge.
+ * Renders a coloured inline badge for a reservation status value.
  *
- * Single source of truth — replaces the two separate implementations
- * that used to live in AdminPage and Plugin.
+ * Callers receive already-escaped HTML and must not double-escape it.
  */
-final class StatusBadge
-{
-    private const COLORS = [
-        ReservationStatus::PENDING   => '#f59e0b',
-        ReservationStatus::APPROVED  => '#16a34a',
-        ReservationStatus::REJECTED  => '#dc2626',
-        ReservationStatus::CANCELLED => '#6b7280',
-    ];
+class StatusBadge {
 
-    public static function render(string $status): string
-    {
-        $status = sanitize_key($status ?: 'unknown');
-        $color  = self::COLORS[$status] ?? '#6b7280';
-        $label  = ReservationStatus::label($status);
+	/**
+	 * Return the badge HTML for a given status.
+	 *
+	 * The returned string is safe to echo directly — all values are
+	 * escaped or come from a hard-coded whitelist.
+	 *
+	 * @param  string $status Reservation status constant.
+	 * @return string         HTML badge element.
+	 */
+	public static function render( string $status ): string {
+		$status = sanitize_key( $status );
 
-        return sprintf(
-            '<span class="mrb-status-badge mrb-status-%1$s" style="display:inline-block;padding:4px 10px;border-radius:4px;background:%2$s;color:#fff;font-size:12px;font-weight:600;">%3$s</span>',
-            esc_attr($status),
-            esc_attr($color),
-            esc_html($label)
-        );
-    }
+		$colors = [
+			ReservationStatus::PENDING   => '#f0ad4e',
+			ReservationStatus::APPROVED  => '#46b450',
+			ReservationStatus::REJECTED  => '#dc3232',
+			ReservationStatus::CANCELLED => '#666666',
+		];
+
+		$color = $colors[ $status ] ?? '#777777';
+		$label = ReservationStatus::label( $status );
+
+		return sprintf(
+			'<span class="mrb-status-badge mrb-status-%s" style="display:inline-block;padding:3px 8px;border-radius:4px;background:%s;color:#fff;font-size:12px;font-weight:600;">%s</span>',
+			esc_attr( $status ),
+			esc_attr( $color ),
+			esc_html( $label )
+		);
+	}
+
+	/** Private constructor — this class is not meant to be instantiated. */
+	private function __construct() {}
 }

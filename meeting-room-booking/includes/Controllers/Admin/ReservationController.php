@@ -1,4 +1,9 @@
 <?php
+/**
+ * Admin reservation list/edit controller.
+ *
+ * @package MeetingRoomBooking
+ */
 
 namespace MRB\Controllers\Admin;
 
@@ -7,109 +12,99 @@ use MRB\Enums\ReservationStatus;
 use MRB\Services\MinimumRoomsCalculator;
 use MRB\Support\View;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
  * Handles the "Meeting Bookings" admin menu page.
  *
- * Registered as the page callback in Plugin::registerAdminPages().
  * Dispatches to index() (list) or edit() based on ?action=edit.
  */
-class ReservationController
-{
-    private ReservationRepositoryInterface $repository;
-    private MinimumRoomsCalculator $calculator;
+class ReservationController {
 
-    public function __construct(
-        ReservationRepositoryInterface $repository,
-        MinimumRoomsCalculator $calculator
-    ) {
-        $this->repository = $repository;
-        $this->calculator = $calculator;
-    }
+	private ReservationRepositoryInterface $repository;
+	private MinimumRoomsCalculator $calculator;
 
-    /**
-     * WordPress menu page callback — dispatches to edit() or index().
-     */
-    public function dispatch(): void
-    {
-        if (!current_user_can('manage_options')) {
-            wp_die(esc_html__('You do not have permission to access this page.', 'meeting-room-booking'));
-        }
+	public function __construct(
+		ReservationRepositoryInterface $repository,
+		MinimumRoomsCalculator $calculator
+	) {
+		$this->repository = $repository;
+		$this->calculator = $calculator;
+	}
 
-        $action = isset($_GET['action']) ? sanitize_key($_GET['action']) : '';
+	/**
+	 * WordPress menu page callback — dispatches to edit() or index().
+	 */
+	public function dispatch(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to access this page.', 'meeting-room-booking' ) );
+		}
 
-        if ($action === 'edit') {
-            $this->edit();
-            return;
-        }
+		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
 
-        $this->index();
-    }
+		if ( 'edit' === $action ) {
+			$this->edit();
+			return;
+		}
 
-    /**
-     * Reservation list page.
-     */
-    public function index(): void
-    {
-        $search = isset($_GET['s'])            ? sanitize_text_field(wp_unslash($_GET['s']))            : '';
-        $date   = isset($_GET['meeting_date']) ? sanitize_text_field(wp_unslash($_GET['meeting_date'])) : '';
-        $status = isset($_GET['status'])       ? sanitize_key($_GET['status'])                          : '';
+		$this->index();
+	}
 
-        if (!ReservationStatus::isValid($status)) {
-            $status = '';
-        }
+	/** Reservation list page. */
+	public function index(): void {
+		$search = isset( $_GET['s'] )            ? sanitize_text_field( wp_unslash( $_GET['s'] ) )            : '';
+		$date   = isset( $_GET['meeting_date'] ) ? sanitize_text_field( wp_unslash( $_GET['meeting_date'] ) ) : '';
+		$status = isset( $_GET['status'] )       ? sanitize_key( wp_unslash( $_GET['status'] ) )              : '';
 
-        $args = [
-            'search' => $search,
-            'date'   => $date,
-            'status' => $status,
-            'limit'  => 100,
-            'offset' => 0,
-        ];
+		if ( ! ReservationStatus::isValid( $status ) ) {
+			$status = '';
+		}
 
-        $reservations    = $this->repository->query($args);
-        $calculationDate = $date ?: date('Y-m-d');
-        $minimumRooms    = $this->calculateMinimumRooms($calculationDate);
+		$reservations    = $this->repository->query( [
+			'search' => $search,
+			'date'   => $date,
+			'status' => $status,
+			'limit'  => 100,
+			'offset' => 0,
+		] );
 
-        View::output('admin/reservation-list', [
-            'reservations'    => $reservations,
-            'filters'         => [
-                'search' => $search,
-                'date'   => $date,
-                'status' => $status,
-            ],
-            'minimumRooms'    => $minimumRooms,
-            'calculationDate' => $calculationDate,
-        ]);
-    }
+		// Use the filtered date for the room-count display; fall back to today.
+		$calculation_date = $date ?: current_time( 'Y-m-d' );
+		$minimum_rooms    = $this->calculateMinimumRooms( $calculation_date );
 
-    /**
-     * Reservation edit form page.
-     */
-    public function edit(): void
-    {
-        $id          = isset($_GET['id']) ? absint($_GET['id']) : 0;
-        $reservation = $id > 0 ? $this->repository->findById($id) : null;
+		View::output( 'admin/reservation-list', [
+			'reservations'    => $reservations,
+			'filters'         => compact( 'search', 'date', 'status' ),
+			'minimumRooms'    => $minimum_rooms,
+			'calculationDate' => $calculation_date,
+		] );
+	}
 
-        View::output('admin/reservation-edit', [
-            'id'          => $id,
-            'reservation' => $reservation,
-        ]);
-    }
+	/** Reservation edit form page. */
+	public function edit(): void {
+		global $wpdb;
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+		$id          = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
+		$reservation = $id > 0 ? $this->repository->findById( $id ) : null;
 
-    private function calculateMinimumRooms(string $date): int
-    {
-        $rows = $this->repository->findActiveByDate($date);
+		// Fetch rooms for the room select dropdown.
+		$rooms = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			"SELECT id, name FROM {$wpdb->prefix}mrb_rooms ORDER BY id ASC",
+			ARRAY_A
+		) ?: [];
 
-        if (empty($rows)) {
-            return 0;
-        }
+		View::output( 'admin/reservation-edit', compact( 'id', 'reservation', 'rooms' ) );
+	}
 
-        return $this->calculator->calculate($rows);
-    }
+	// ── Private helpers ───────────────────────────────────────────────────────
+
+	private function calculateMinimumRooms( string $date ): int {
+		$rows = $this->repository->findActiveByDate( $date );
+		if ( empty( $rows ) ) {
+			return 0;
+		}
+		return $this->calculator->calculate( $rows );
+	}
 }

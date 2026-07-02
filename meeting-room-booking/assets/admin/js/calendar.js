@@ -1,4 +1,4 @@
-﻿document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function () {
   const calendarEl = document.getElementById("mrb-calendar");
 
   if (!calendarEl) {
